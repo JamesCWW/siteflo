@@ -18,7 +18,12 @@
       "Bash(node_modules/.bin/next build:*)",
       "Bash(find /Users/james/Siteflo/node_modules/resend -name *.d.ts)",
       "Bash(find /Users/james/Siteflo/node_modules/resend -name *.cts -o -name *.d.mts)",
-      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0][''''text'''']\\)\")"
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0][''''text'''']\\)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node_modules/typescript/bin/tsc --noEmit --skipLibCheck)",
+      "Bash(./node_modules/.bin/tsc --noEmit)"
     ]
   }
 }

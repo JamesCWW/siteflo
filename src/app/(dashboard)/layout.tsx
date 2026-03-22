@@ -20,8 +20,9 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  // Fetch brand colour for CSS variable injection
   let primaryColor = '#2563eb';
+  let onboardingComplete: boolean | undefined;
+
   try {
     const [userRow] = await db
       .select({ tenantId: users.tenantId })
@@ -31,16 +32,23 @@ export default async function DashboardLayout({
 
     if (userRow) {
       const [tenant] = await db
-        .select({ branding: tenants.branding })
+        .select({ branding: tenants.branding, settings: tenants.settings })
         .from(tenants)
         .where(eq(tenants.id, userRow.tenantId))
         .limit(1);
+
       if (tenant?.branding?.primaryColor) {
         primaryColor = tenant.branding.primaryColor;
       }
+      onboardingComplete = tenant?.settings?.onboardingComplete;
     }
-  } catch {
-    // Non-fatal: fall back to default colour
+  } catch (err) {
+    console.error('[layout] tenant fetch failed:', err);
+  }
+
+  // redirect() throws internally — must be outside try/catch or it gets swallowed
+  if (onboardingComplete === false) {
+    redirect('/onboarding');
   }
 
   return (

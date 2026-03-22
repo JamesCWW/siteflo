@@ -170,6 +170,48 @@ export async function createContract(input: unknown) {
   }
 }
 
+const UpdateContractSchema = ContractSchema.omit({ customerId: true });
+
+export async function updateContract(id: string, input: unknown) {
+  try {
+    const user = await getCurrentUser();
+    const parsed = UpdateContractSchema.parse(input);
+
+    const [contract] = await db
+      .update(serviceContracts)
+      .set({
+        title: parsed.title,
+        description: parsed.description || null,
+        intervalMonths: parsed.intervalMonths,
+        nextDueDate: new Date(parsed.nextDueDate),
+        reminderLeadDays: parsed.reminderLeadDays,
+        templateId: parsed.templateId || null,
+        standardPricePence: parsed.standardPriceGbp != null
+          ? Math.round(parsed.standardPriceGbp * 100)
+          : null,
+        installationDate: parsed.installationDate
+          ? new Date(parsed.installationDate)
+          : null,
+        installationDetails: parsed.installationDetails ?? {},
+        updatedAt: new Date(),
+      })
+      .where(and(eq(serviceContracts.id, id), eq(serviceContracts.tenantId, user.tenantId)))
+      .returning();
+
+    if (!contract) return { success: false, error: 'Contract not found' };
+
+    revalidatePath('/contracts');
+    revalidatePath(`/contracts/${id}`);
+    return { success: true, data: contract };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Invalid input', details: error.flatten() };
+    }
+    console.error('updateContract failed:', error);
+    return { success: false, error: 'Failed to update contract' };
+  }
+}
+
 export async function updateContractStatus(
   id: string,
   status: 'active' | 'paused' | 'expired' | 'cancelled'

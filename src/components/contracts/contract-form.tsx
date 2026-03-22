@@ -11,12 +11,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createContract } from '@/actions/contracts';
+import { createContract, updateContract } from '@/actions/contracts';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { addMonths, format } from 'date-fns';
 
 const schema = z.object({
-  title: z.string().min(1, 'Title is required'),
+  title: z.string().min(1, 'Service type is required'),
   intervalMonths: z.number().int().min(1).max(120),
   nextDueDate: z.string().min(1, 'Next due date is required'),
   reminderLeadDays: z.number().int().min(1).max(365),
@@ -41,27 +41,38 @@ type ContractFormProps = {
   customerId: string;
   customerName: string;
   templates: Template[];
+  mode?: 'create' | 'edit';
+  contractId?: string;
+  initialValues?: Partial<FormData>;
 };
 
-export function ContractForm({ customerId, customerName, templates }: ContractFormProps) {
+export function ContractForm({
+  customerId,
+  customerName,
+  templates,
+  mode = 'create',
+  contractId,
+  initialValues,
+}: ContractFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [showInstallDetails, setShowInstallDetails] = useState(false);
+
+  const hasInitialInstallDetails = initialValues?.installationDetails
+    && Object.values(initialValues.installationDetails).some(Boolean);
+  const [showInstallDetails, setShowInstallDetails] = useState(hasInitialInstallDetails ?? false);
 
   const defaultNextDue = format(addMonths(new Date(), 12), 'yyyy-MM-dd');
 
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       intervalMonths: 12,
       nextDueDate: defaultNextDue,
       reminderLeadDays: 30,
+      ...initialValues,
     },
   });
 
-  const intervalMonths = watch('intervalMonths');
-
-  // Recalculate nextDueDate when interval changes
   const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const months = parseInt(e.target.value, 10);
     if (!isNaN(months) && months > 0) {
@@ -71,17 +82,30 @@ export function ContractForm({ customerId, customerName, templates }: ContractFo
 
   const onSubmit = async (data: FormData) => {
     setError(null);
-    const result = await createContract({
-      ...data,
-      customerId,
-      templateId: data.templateId || undefined,
-    });
 
-    if (result.success && result.data) {
-      router.push(`/contracts/${result.data.id}`);
-      router.refresh();
+    if (mode === 'edit' && contractId) {
+      const result = await updateContract(contractId, {
+        ...data,
+        templateId: data.templateId || undefined,
+      });
+      if (result.success) {
+        router.push(`/contracts/${contractId}`);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Something went wrong');
+      }
     } else {
-      setError(result.error ?? 'Something went wrong');
+      const result = await createContract({
+        ...data,
+        customerId,
+        templateId: data.templateId || undefined,
+      });
+      if (result.success && result.data) {
+        router.push(`/contracts/${result.data.id}`);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Something went wrong');
+      }
     }
   };
 
@@ -106,13 +130,24 @@ export function ContractForm({ customerId, customerName, templates }: ContractFo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">What needs servicing? <span className="text-destructive">*</span></Label>
+            <Label htmlFor="title">Service type <span className="text-destructive">*</span></Label>
             <Input
               id="title"
               className="h-12"
-              placeholder="e.g. Annual Boiler Service, Gate Maintenance"
+              placeholder="e.g. Annual Gate Service, Boiler Service, Fire Alarm Inspection"
+              list="service-type-suggestions"
               {...register('title')}
             />
+            {templates.length > 0 && (
+              <datalist id="service-type-suggestions">
+                {templates.map((t) => (
+                  <option key={t.id} value={t.name} />
+                ))}
+              </datalist>
+            )}
+            <p className="text-xs text-muted-foreground">
+              The recurring service name — not a description of the installation. Use the Installation Details section below for specifics about what was installed.
+            </p>
             {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
           </div>
 
@@ -182,7 +217,10 @@ export function ContractForm({ customerId, customerName, templates }: ContractFo
           {templates.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="templateId">Service template <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Select onValueChange={(v) => setValue('templateId', v)}>
+              <Select
+                defaultValue={initialValues?.templateId || undefined}
+                onValueChange={(v) => setValue('templateId', v)}
+              >
                 <SelectTrigger className="h-12">
                   <SelectValue placeholder="Select a template..." />
                 </SelectTrigger>
@@ -264,7 +302,10 @@ export function ContractForm({ customerId, customerName, templates }: ContractFo
 
       <div className="flex gap-3">
         <Button type="submit" className="h-12 px-8" disabled={isSubmitting}>
-          {isSubmitting ? 'Creating...' : 'Create contract'}
+          {isSubmitting
+            ? (mode === 'edit' ? 'Saving...' : 'Creating...')
+            : (mode === 'edit' ? 'Save changes' : 'Create contract')
+          }
         </Button>
         <Button type="button" variant="outline" className="h-12" onClick={() => router.back()}>
           Cancel

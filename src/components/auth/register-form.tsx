@@ -33,7 +33,7 @@ export function RegisterForm() {
     setError(null);
     const result = await registerAction(data);
     if (result.success) {
-      router.push('/dashboard');
+      router.push('/onboarding');
       router.refresh();
     } else {
       setError(result.error ?? 'Registration failed');

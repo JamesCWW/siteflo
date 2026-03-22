@@ -27,6 +27,8 @@ export const tenants = pgTable('tenants', {
     workingHoursEnd: string;
     workingDays: number[];
     bookingSlotMinutes: number;
+    onboardingComplete?: boolean;
+    trade?: string;
   }>().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

@@ -6,7 +6,7 @@ import { BankDetailsForm } from '@/components/settings/bank-details-form';
 import { WorkingHoursForm } from '@/components/settings/working-hours-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { Users } from 'lucide-react';
+import { Users, Wand2 } from 'lucide-react';
 
 export default async function SettingsPage() {
   const result = await getTenantSettings();
@@ -45,6 +45,19 @@ export default async function SettingsPage() {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground mt-1">Manage your business details, branding, and preferences.</p>
       </div>
+
+      {/* Setup wizard shortcut */}
+      <Link href="/onboarding">
+        <Card className="hover:shadow-sm transition-shadow cursor-pointer">
+          <CardContent className="py-4 flex items-center gap-3">
+            <Wand2 className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Re-run setup wizard</p>
+              <p className="text-xs text-muted-foreground">Change your trade, re-seed templates, or update business details</p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Team management shortcut */}
       <Link href="/settings/team">

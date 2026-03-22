@@ -98,6 +98,7 @@ export async function register(input: unknown) {
         workingHoursEnd: '17:00',
         workingDays: [1, 2, 3, 4, 5],
         bookingSlotMinutes: 60,
+        onboardingComplete: false,
       },
     }).returning();
     tenant = result[0];

@@ -11,7 +11,7 @@ import { formatPence } from '@/lib/utils/money';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import {
   User, MapPin, Calendar, Clock, RefreshCw, Wrench,
-  AlertCircle, Tag, Plus, History
+  AlertCircle, Tag, Plus, History, Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JobStatus } from '@/actions/jobs';
@@ -48,7 +48,15 @@ export default async function ContractDetailPage({
             {contract.refNumber} · Created {format(new Date(contract.createdAt), 'dd MMM yyyy')}
           </p>
         </div>
-        <ContractStatusActions contractId={id} currentStatus={contract.status} />
+        <div className="flex items-center gap-2 shrink-0">
+          <Button asChild variant="outline" size="sm" className="h-9">
+            <Link href={`/contracts/${id}/edit`}>
+              <Pencil className="h-4 w-4 mr-1.5" />
+              Edit
+            </Link>
+          </Button>
+          <ContractStatusActions contractId={id} currentStatus={contract.status} />
+        </div>
       </div>
 
       {/* Next due alert */}
