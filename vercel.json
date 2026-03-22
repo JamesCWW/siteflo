@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/contract-renewal",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/automation",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx:*)",
+      "Bash(rm package.json)",
+      "Read(//private/tmp/**)",
+      "Bash(cp:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(ls:*)",
+      "Bash(ln -s ../next/dist/bin/next /Users/james/Siteflo/node_modules/.bin/next)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d[''''version'''']\\)\")",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(node:*)",
+      "Bash(node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(mkdir -p \"/Users/james/Siteflo/src/app/portal/invoice/[token]\")",
+      "Bash(mkdir -p \"/Users/james/Siteflo/src/app/portal/quote/[token]\")",
+      "Bash(node_modules/.bin/next build:*)",
+      "Bash(find /Users/james/Siteflo/node_modules/resend -name *.d.ts)",
+      "Bash(find /Users/james/Siteflo/node_modules/resend -name *.cts -o -name *.d.mts)",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0][''''text'''']\\)\")"
+    ]
+  }
+}
