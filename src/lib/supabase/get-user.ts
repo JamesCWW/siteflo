@@ -14,19 +14,27 @@ export async function getCurrentUser() {
     redirect('/login');
   }
 
+  // DB query is outside the try/catch so redirect() can propagate correctly.
+  // next/navigation redirect() throws internally — catching it silently breaks it.
+  let user: typeof users.$inferSelect | undefined;
+  let dbError: unknown;
   try {
     const result = await db.select().from(users).where(eq(users.authId, authUser.id)).limit(1);
     console.log('DB QUERY RESULT:', JSON.stringify(result));
-    const user = result[0];
+    user = result[0];
+  } catch (err) {
+    console.error('DB QUERY FAILED:', err);
+    dbError = err;
+  }
 
-    if (!user) {
-      console.log('NO USER ROW FOUND for authId:', authUser.id);
-      redirect('/login');
-    }
-
-    return user;
-  } catch (dbError) {
-    console.error('DB QUERY FAILED:', dbError);
+  if (dbError) {
     redirect('/login');
   }
+
+  if (!user) {
+    console.log('NO USER ROW FOUND for authId:', authUser.id);
+    redirect('/login');
+  }
+
+  return user!;
 }

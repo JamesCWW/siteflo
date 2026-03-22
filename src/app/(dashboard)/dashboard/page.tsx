@@ -2,12 +2,12 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { db } from '@/db/client';
+import { serviceContracts, customers, automationLogs, automationRules, users } from '@/db/schema';
+import { eq, and, lte, asc, desc } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { getInvoices } from '@/actions/invoices';
 import { getJobs } from '@/actions/jobs';
-import { db } from '@/db/client';
-import { serviceContracts, customers, automationLogs, automationRules } from '@/db/schema';
-import { eq, and, lte, asc, desc } from 'drizzle-orm';
-import { getCurrentUser } from '@/lib/supabase/get-user';
 import { formatPence } from '@/lib/utils/money';
 import { format, addDays, formatDistanceToNow, differenceInCalendarDays } from 'date-fns';
 import {
@@ -16,55 +16,120 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export default async function DashboardPage() {
-  const user = await getCurrentUser();
+type ContractDueSoon = {
+  contract: typeof serviceContracts.$inferSelect;
+  customer: { id: string; name: string };
+};
+type InvoiceRow = Awaited<ReturnType<typeof getInvoices>>['data'][number];
+type JobRow = Awaited<ReturnType<typeof getJobs>>['data'][number];
+type LogRow = {
+  log: typeof automationLogs.$inferSelect;
+  rule: { name: string; trigger: string };
+};
 
-  // Parallel data fetching — allSettled so one failure doesn't blank the page
-  const results = await Promise.allSettled([
-    db
+type DashboardStats = {
+  contractsDueSoon: ContractDueSoon[];
+  upcomingJobs: JobRow[];
+  draftInvoices: InvoiceRow[];
+  overdueInvoices: InvoiceRow[];
+  overdueTotal: number;
+  recentLogs: LogRow[];
+};
+
+async function getDashboardStats(tenantId: string | null): Promise<DashboardStats> {
+  const stats: DashboardStats = {
+    contractsDueSoon: [],
+    upcomingJobs: [],
+    draftInvoices: [],
+    overdueInvoices: [],
+    overdueTotal: 0,
+    recentLogs: [],
+  };
+
+  if (!tenantId) return stats;
+
+  try {
+    stats.contractsDueSoon = await db
       .select({ contract: serviceContracts, customer: { id: customers.id, name: customers.name } })
       .from(serviceContracts)
       .innerJoin(customers, eq(serviceContracts.customerId, customers.id))
       .where(and(
-        eq(serviceContracts.tenantId, user.tenantId),
+        eq(serviceContracts.tenantId, tenantId),
         eq(serviceContracts.status, 'active'),
         lte(serviceContracts.nextDueDate, addDays(new Date(), 30)),
       ))
       .orderBy(asc(serviceContracts.nextDueDate))
-      .limit(5),
+      .limit(5);
+  } catch { }
 
-    getJobs({ status: 'scheduled' }),
+  try {
+    const result = await getJobs({ status: 'scheduled' });
+    stats.upcomingJobs = (result.data ?? []).slice(0, 5);
+  } catch { }
 
-    getInvoices({ status: 'draft' }),
-    getInvoices({ status: 'overdue' }),
-    getInvoices({ status: 'sent' }),
+  try {
+    const result = await getInvoices({ status: 'draft' });
+    stats.draftInvoices = result.data ?? [];
+  } catch { }
 
-    db
+  try {
+    const overdueResult = await getInvoices({ status: 'overdue' });
+    const sentResult = await getInvoices({ status: 'sent' });
+    const overdue = overdueResult.data ?? [];
+    const pastDueSent = (sentResult.data ?? []).filter(
+      ({ invoice }) => new Date(invoice.dueDate) < new Date()
+    );
+    stats.overdueInvoices = [...overdue, ...pastDueSent];
+    stats.overdueTotal = stats.overdueInvoices.reduce((sum, { invoice }) => sum + invoice.totalPence, 0);
+  } catch { }
+
+  try {
+    stats.recentLogs = await db
       .select({ log: automationLogs, rule: { name: automationRules.name, trigger: automationRules.trigger } })
       .from(automationLogs)
       .innerJoin(automationRules, eq(automationLogs.ruleId, automationRules.id))
-      .where(eq(automationLogs.tenantId, user.tenantId))
+      .where(eq(automationLogs.tenantId, tenantId))
       .orderBy(desc(automationLogs.executedAt))
-      .limit(10),
-  ]);
+      .limit(10);
+  } catch { }
 
-  const contractsDueSoon = results[0].status === 'fulfilled' ? results[0].value : [];
-  const upcomingJobsResult = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
-  const draftInvoicesResult = results[2].status === 'fulfilled' ? results[2].value : { data: [] };
-  const overdueInvoicesResult = results[3].status === 'fulfilled' ? results[3].value : { data: [] };
-  const sentInvoicesResult = results[4].status === 'fulfilled' ? results[4].value : { data: [] };
-  const recentLogs = results[5].status === 'fulfilled' ? results[5].value : [];
+  return stats;
+}
 
-  const upcomingJobs = (upcomingJobsResult.data ?? []).slice(0, 5);
-  const draftInvoices = draftInvoicesResult.data ?? [];
+export default async function DashboardPage() {
+  // Safe auth — never redirect from the dashboard page.
+  // If auth fails here, the proxy has already handled it. If the DB lookup
+  // fails for any reason (e.g. missing user row), we render with empty data
+  // rather than redirecting to /login (which would loop back via the proxy).
+  let tenantId: string | null = null;
+  try {
+    const supabase = await createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const result = await db
+        .select({ tenantId: users.tenantId })
+        .from(users)
+        .where(eq(users.authId, authUser.id))
+        .limit(1);
+      tenantId = result[0]?.tenantId ?? null;
+    }
+  } catch { }
 
-  const overdueInvoices = [
-    ...(overdueInvoicesResult.data ?? []),
-    ...(sentInvoicesResult.data ?? []).filter(
-      ({ invoice }) => new Date(invoice.dueDate) < new Date()
-    ),
-  ];
-  const overdueTotal = overdueInvoices.reduce((sum, { invoice }) => sum + invoice.totalPence, 0);
+  const {
+    contractsDueSoon,
+    upcomingJobs,
+    draftInvoices,
+    overdueInvoices,
+    overdueTotal,
+    recentLogs,
+  } = await getDashboardStats(tenantId);
+
+  const isEmpty =
+    draftInvoices.length === 0 &&
+    contractsDueSoon.length === 0 &&
+    upcomingJobs.length === 0 &&
+    overdueInvoices.length === 0 &&
+    recentLogs.length === 0;
 
   return (
     <div className="space-y-8">
@@ -149,13 +214,13 @@ export default async function DashboardPage() {
                 <Link key={invoice.id} href={`/invoices/${invoice.id}`}>
                   <div className="flex items-center justify-between py-3 px-6 hover:bg-muted/50 transition-colors min-h-[52px]">
                     <div>
-                      <p className="text-sm font-medium">{customer.name}</p>
-                      <p className="text-xs text-muted-foreground">{invoice.refNumber} · Job {job.refNumber}</p>
+                      <p className="text-sm font-medium">{customer?.name ?? '—'}</p>
+                      <p className="text-xs text-muted-foreground">{invoice.refNumber} · Job {job?.refNumber ?? '—'}</p>
                     </div>
                     <div className="text-right shrink-0 ml-4">
                       <p className="text-sm font-bold">{formatPence(invoice.totalPence)}</p>
                       <Button asChild size="sm" variant="outline" className="h-7 text-xs mt-1">
-                        <span>Review & send</span>
+                        <span>Review &amp; send</span>
                       </Button>
                     </div>
                   </div>
@@ -194,7 +259,7 @@ export default async function DashboardPage() {
                   <Link key={invoice.id} href={`/invoices/${invoice.id}`}>
                     <div className="flex items-center justify-between py-3 px-6 hover:bg-red-50/50 transition-colors min-h-[52px]">
                       <div>
-                        <p className="text-sm font-medium">{customer.name}</p>
+                        <p className="text-sm font-medium">{customer?.name ?? '—'}</p>
                         <p className="text-xs text-muted-foreground">{invoice.refNumber}</p>
                       </div>
                       <div className="text-right shrink-0 ml-4">
@@ -227,7 +292,7 @@ export default async function DashboardPage() {
                   <Link key={contract.id} href={`/contracts/${contract.id}`}>
                     <div className="flex items-center justify-between py-3 px-6 hover:bg-muted/50 transition-colors min-h-[52px]">
                       <div>
-                        <p className="text-sm font-medium">{customer.name}</p>
+                        <p className="text-sm font-medium">{customer?.name ?? '—'}</p>
                         <p className="text-xs text-muted-foreground">{contract.title}</p>
                       </div>
                       <div className="text-right shrink-0 ml-4">
@@ -270,7 +335,7 @@ export default async function DashboardPage() {
                 <Link key={job.id} href={`/jobs/${job.id}`}>
                   <div className="flex items-center justify-between py-3 px-6 hover:bg-muted/50 transition-colors min-h-[52px]">
                     <div>
-                      <p className="text-sm font-medium">{customer.name}</p>
+                      <p className="text-sm font-medium">{customer?.name ?? '—'}</p>
                       <p className="text-xs text-muted-foreground">{job.refNumber}</p>
                     </div>
                     {job.scheduledStart && (
@@ -307,7 +372,7 @@ export default async function DashboardPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium">{rule.name}</span>
+                        <span className="text-sm font-medium">{rule?.name ?? '—'}</span>
                         <Badge
                           variant={log.status === 'sent' ? 'default' : log.status === 'failed' ? 'destructive' : 'secondary'}
                           className="text-xs"
@@ -327,7 +392,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {draftInvoices.length === 0 && contractsDueSoon.length === 0 && upcomingJobs.length === 0 && overdueInvoices.length === 0 && recentLogs.length === 0 && (
+      {isEmpty && (
         <div className="text-center py-16 text-muted-foreground">
           <p className="font-medium">All clear!</p>
           <p className="text-sm mt-1">No draft invoices, upcoming jobs, or contracts due soon.</p>
