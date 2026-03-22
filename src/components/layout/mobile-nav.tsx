@@ -39,9 +39,11 @@ export function MobileNav({ className }: MobileNavProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center gap-1 min-w-[48px] min-h-[48px] justify-center rounded-lg px-2 transition-colors',
-              isActive ? 'text-primary' : 'text-muted-foreground'
+              'flex flex-col items-center gap-1 min-w-[48px] min-h-[48px] justify-center rounded-lg px-2',
+              'transition-all duration-100 active:scale-95 active:bg-accent',
+              isActive ? 'opacity-100' : 'text-muted-foreground opacity-70'
             )}
+            style={isActive ? { color: 'var(--brand-color, #0ea5e9)' } : undefined}
           >
             <Icon className="h-5 w-5" />
             <span className="text-[10px] font-medium">{item.label}</span>

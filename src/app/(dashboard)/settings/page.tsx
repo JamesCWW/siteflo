@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation';
 import { getTenantSettings } from '@/actions/settings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BusinessInfoForm } from '@/components/settings/business-info-form';
@@ -11,7 +10,9 @@ import { Users } from 'lucide-react';
 
 export default async function SettingsPage() {
   const result = await getTenantSettings();
-  if (!result.success || !result.data) notFound();
+  if (!result.success || !result.data) {
+    throw new Error(result.error ?? 'Failed to load settings');
+  }
 
   const tenant = result.data;
 
