@@ -138,10 +138,10 @@ export default async function CustomerDetailPage({
                         <div className="flex items-center gap-1.5 mt-2 text-sm">
                           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="text-muted-foreground">
-                            Due {format(new Date(contract.nextDueDate), 'dd MMM yyyy')}
+                            Due {format(new Date(contract.nextServiceDate), 'dd MMM yyyy')}
                           </span>
                           <span className="text-muted-foreground">
-                            ({formatDistanceToNow(new Date(contract.nextDueDate), { addSuffix: true })})
+                            ({formatDistanceToNow(new Date(contract.nextServiceDate), { addSuffix: true })})
                           </span>
                         </div>
                       </div>

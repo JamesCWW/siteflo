@@ -56,9 +56,9 @@ async function getDashboardStats(tenantId: string | null): Promise<DashboardStat
       .where(and(
         eq(serviceContracts.tenantId, tenantId),
         eq(serviceContracts.status, 'active'),
-        lte(serviceContracts.nextDueDate, addDays(new Date(), 30)),
+        lte(serviceContracts.nextServiceDate, addDays(new Date(), 30)),
       ))
-      .orderBy(asc(serviceContracts.nextDueDate))
+      .orderBy(asc(serviceContracts.nextServiceDate))
       .limit(5);
   } catch { }
 
@@ -287,7 +287,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-1 p-0">
               {contractsDueSoon.map(({ contract, customer }) => {
-                const daysLeft = differenceInCalendarDays(new Date(contract.nextDueDate), new Date());
+                const daysLeft = differenceInCalendarDays(new Date(contract.nextServiceDate), new Date());
                 return (
                   <Link key={contract.id} href={`/contracts/${contract.id}`}>
                     <div className="flex items-center justify-between py-3 px-6 hover:bg-muted/50 transition-colors min-h-[52px]">
@@ -297,7 +297,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0 ml-4">
                         <p className="text-sm font-medium text-amber-600">
-                          {format(new Date(contract.nextDueDate), 'dd MMM')}
+                          {format(new Date(contract.nextServiceDate), 'dd MMM')}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {daysLeft <= 0 ? 'Today' : `in ${daysLeft}d`}
