@@ -11,16 +11,26 @@ import { createClient } from '@/lib/supabase/server';
 export async function getTenantSettings() {
   try {
     const user = await getCurrentUser();
+    console.log('[getTenantSettings] user.tenantId:', user.tenantId);
+
     const [tenant] = await db
       .select()
       .from(tenants)
       .where(eq(tenants.id, user.tenantId))
       .limit(1);
 
-    if (!tenant) return { success: false, error: 'Tenant not found', data: null };
+    if (!tenant) {
+      console.error('[getTenantSettings] No tenant row found for tenantId:', user.tenantId);
+      return { success: false, error: 'Tenant not found', data: null };
+    }
+
+    console.log('[getTenantSettings] tenant.branding type:', typeof tenant.branding, '| value:', JSON.stringify(tenant.branding));
+    console.log('[getTenantSettings] tenant.settings type:', typeof tenant.settings, '| value:', JSON.stringify(tenant.settings));
+
     return { success: true, data: tenant };
   } catch (error) {
-    console.error('getTenantSettings failed:', error);
+    console.error('[getTenantSettings] failed:', error instanceof Error ? error.message : error);
+    console.error('[getTenantSettings] stack:', error instanceof Error ? error.stack : 'no stack');
     return { success: false, error: 'Failed to load settings', data: null };
   }
 }

@@ -16,6 +16,29 @@ export default async function SettingsPage() {
 
   const tenant = result.data;
 
+  // Normalize JSONB fields — existing tenant rows may have null or partial
+  // objects if they were created before the schema added these fields.
+  const branding = {
+    primaryColor: '#0ea5e9',
+    companyName: '',
+    companyAddress: '',
+    companyPhone: '',
+    companyEmail: '',
+    ...(tenant.branding && typeof tenant.branding === 'object' ? tenant.branding : {}),
+  };
+
+  const settings = {
+    defaultCurrency: 'GBP',
+    defaultVatRate: 20,
+    quoteExpiryDays: 30,
+    invoicePaymentTermsDays: 14,
+    workingHoursStart: '08:00',
+    workingHoursEnd: '17:00',
+    workingDays: [1, 2, 3, 4, 5],
+    bookingSlotMinutes: 60,
+    ...(tenant.settings && typeof tenant.settings === 'object' ? tenant.settings : {}),
+  };
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
@@ -53,7 +76,7 @@ export default async function SettingsPage() {
               <CardTitle className="text-base">Business information</CardTitle>
             </CardHeader>
             <CardContent>
-              <BusinessInfoForm branding={tenant.branding} />
+              <BusinessInfoForm branding={branding} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -64,7 +87,7 @@ export default async function SettingsPage() {
               <CardTitle className="text-base">Branding</CardTitle>
             </CardHeader>
             <CardContent>
-              <BrandingForm branding={tenant.branding} />
+              <BrandingForm branding={branding} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -75,7 +98,7 @@ export default async function SettingsPage() {
               <CardTitle className="text-base">Bank details</CardTitle>
             </CardHeader>
             <CardContent>
-              <BankDetailsForm branding={tenant.branding} />
+              <BankDetailsForm branding={branding} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -86,7 +109,7 @@ export default async function SettingsPage() {
               <CardTitle className="text-base">Working hours &amp; booking</CardTitle>
             </CardHeader>
             <CardContent>
-              <WorkingHoursForm settings={tenant.settings} />
+              <WorkingHoursForm settings={settings} />
             </CardContent>
           </Card>
         </TabsContent>

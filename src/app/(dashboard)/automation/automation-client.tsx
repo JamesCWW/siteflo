@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { toggleAutomationRule } from '@/actions/automation';
+import { toggleAutomationRule, seedDefaultAutomationRules } from '@/actions/automation';
 import { format } from 'date-fns';
 import { CheckCircle2, XCircle, MinusCircle, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -77,10 +79,24 @@ interface AutomationClientProps {
 }
 
 export function AutomationClient({ rules, logs }: AutomationClientProps) {
+  const router = useRouter();
   const [ruleStates, setRuleStates] = useState<Record<string, boolean>>(
     Object.fromEntries(rules.map((r) => [r.id, r.isActive]))
   );
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [seeding, setSeeding] = useState(false);
+
+  async function handleSeed() {
+    setSeeding(true);
+    const result = await seedDefaultAutomationRules();
+    setSeeding(false);
+    if (result.success) {
+      toast.success(`Created ${result.count} automation rules`);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? 'Failed to create rules');
+    }
+  }
 
   async function handleToggle(id: string, value: boolean) {
     // Optimistic update
@@ -113,8 +129,18 @@ export function AutomationClient({ rules, logs }: AutomationClientProps) {
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               <Zap className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p>No automation rules found.</p>
-              <p className="text-sm mt-1">Rules are created automatically when you register.</p>
+              <p className="font-medium text-foreground">No automation rules found</p>
+              <p className="text-sm mt-1 max-w-sm mx-auto">
+                Rules are normally created at registration. Use the button below to set them up now.
+              </p>
+              <Button
+                onClick={handleSeed}
+                disabled={seeding}
+                className="mt-4"
+                size="sm"
+              >
+                {seeding ? 'Setting up…' : 'Set up default automation rules'}
+              </Button>
             </CardContent>
           </Card>
         ) : (
