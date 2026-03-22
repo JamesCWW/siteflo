@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createContract, updateContract } from '@/actions/contracts';
-import { ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Info, Archive } from 'lucide-react';
 import { addMonths, format } from 'date-fns';
 import { formatPence } from '@/lib/utils/money';
 
@@ -34,6 +34,15 @@ const schema = z.object({
     location: z.string().optional(),
     warrantyExpiry: z.string().optional(),
   }).optional(),
+  // Import / mid-cycle fields
+  contractStartDate: z.string().optional(),
+  lastServiceDate: z.string().optional(),
+  servicesCompletedInCycle: z.number().int().min(0).optional(),
+  totalServicesCompleted: z.number().int().min(0).optional(),
+  billingCycleStart: z.string().optional(),
+  cycleInvoiceStatus: z.enum(['not_invoiced', 'invoice_sent', 'invoice_paid']).optional(),
+  cycleInvoicePaidDate: z.string().optional(),
+  nextInvoiceDate: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -78,6 +87,17 @@ export function ContractForm({
     && Object.values(initialValues.installationDetails).some(Boolean);
   const [showInstallDetails, setShowInstallDetails] = useState(hasInitialInstallDetails ?? false);
 
+  const hasImportData = !!(
+    initialValues?.contractStartDate ||
+    initialValues?.lastServiceDate ||
+    initialValues?.servicesCompletedInCycle ||
+    initialValues?.totalServicesCompleted ||
+    initialValues?.billingCycleStart ||
+    initialValues?.cycleInvoiceStatus ||
+    initialValues?.nextInvoiceDate
+  );
+  const [showImport, setShowImport] = useState(hasImportData);
+
   const defaultNextService = format(addMonths(new Date(), 12), 'yyyy-MM-dd');
 
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -88,6 +108,7 @@ export function ContractForm({
       invoiceTiming: 'upfront',
       nextServiceDate: defaultNextService,
       reminderLeadDays: 30,
+      cycleInvoiceStatus: 'not_invoiced',
       ...initialValues,
     },
   });
@@ -96,13 +117,13 @@ export function ContractForm({
   const billingInterval = watch('billingIntervalMonths');
   const invoiceTiming = watch('invoiceTiming');
   const standardPriceGbp = watch('standardPriceGbp');
+  const cycleInvoiceStatus = watch('cycleInvoiceStatus');
 
   const splitBilling = billingInterval !== serviceInterval;
   const visitsPerCycle = splitBilling
     ? Math.max(1, Math.round(billingInterval / serviceInterval))
     : 1;
 
-  // Summary line
   const pricePence = standardPriceGbp ? Math.round(standardPriceGbp * 100) : null;
   const summaryParts: string[] = [];
   if (pricePence) summaryParts.push(`${formatPence(pricePence)} ${timingLabel(invoiceTiming)} ${intervalLabel(billingInterval)}`);
@@ -120,9 +141,24 @@ export function ContractForm({
     }
   };
 
+  // Auto-suggest nextServiceDate from lastServiceDate + serviceInterval
+  const handleLastServiceDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val && serviceInterval > 0) {
+      setValue('nextServiceDate', format(addMonths(new Date(val), serviceInterval), 'yyyy-MM-dd'));
+    }
+  };
+
+  // Auto-suggest nextInvoiceDate from billingCycleStart + billingInterval
+  const handleBillingCycleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val && billingInterval > 0) {
+      setValue('nextInvoiceDate', format(addMonths(new Date(val), billingInterval), 'yyyy-MM-dd'));
+    }
+  };
+
   const onSubmit = async (data: FormData) => {
     setError(null);
-    // If billing = service, always default to upfront (no timing shown)
     const payload = {
       ...data,
       invoiceTiming: data.billingIntervalMonths === data.serviceIntervalMonths
@@ -192,7 +228,6 @@ export function ContractForm({
             {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
           </div>
 
-          {/* Service & billing intervals */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serviceIntervalMonths">Service interval <span className="text-destructive">*</span></Label>
@@ -230,7 +265,6 @@ export function ContractForm({
             </div>
           </div>
 
-          {/* Invoice timing — only shown when billing ≠ service */}
           {splitBilling && (
             <div className="space-y-2 rounded-lg border border-dashed p-4">
               <Label className="flex items-center gap-1.5">
@@ -253,7 +287,6 @@ export function ContractForm({
             </div>
           )}
 
-          {/* Summary */}
           {(pricePence || splitBilling) && (
             <div className="rounded-md bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
               {summary}
@@ -337,7 +370,7 @@ export function ContractForm({
         </CardContent>
       </Card>
 
-      {/* Installation details collapsible */}
+      {/* Installation details */}
       <div>
         <button
           type="button"
@@ -366,7 +399,6 @@ export function ContractForm({
                   <Input id="installationDetails.model" className="h-12" placeholder="e.g. Greenstar 4000" {...register('installationDetails.model')} />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="installationDetails.serialNumber">Serial number</Label>
@@ -377,16 +409,161 @@ export function ContractForm({
                   <Input id="installationDate" type="date" className="h-12" {...register('installationDate')} />
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="installationDetails.location">Location in property</Label>
                 <Input id="installationDetails.location" className="h-12" placeholder="e.g. Kitchen, ground floor" {...register('installationDetails.location')} />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="installationDetails.warrantyExpiry">Warranty expiry date</Label>
                 <Input id="installationDetails.warrantyExpiry" type="date" className="h-12" {...register('installationDetails.warrantyExpiry')} />
               </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Import / mid-cycle section */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowImport(v => !v)}
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {showImport ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          <Archive className="h-4 w-4" />
+          {showImport ? 'Hide' : 'Import existing contract'} (migrating from another system?)
+        </button>
+
+        {showImport && (
+          <Card className="mt-3 border-dashed">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Mid-cycle import</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Use this when the contract is already in progress — set the current state so scheduling and invoicing picks up correctly.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-5">
+
+              {/* Contract history */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contract history</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="contractStartDate">Contract start date</Label>
+                    <Input id="contractStartDate" type="date" className="h-12" {...register('contractStartDate')} />
+                    <p className="text-xs text-muted-foreground">When did this contract originally begin?</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastServiceDate">Last service date</Label>
+                    <Input
+                      id="lastServiceDate"
+                      type="date"
+                      className="h-12"
+                      {...register('lastServiceDate')}
+                      onChange={(e) => {
+                        register('lastServiceDate').onChange(e);
+                        handleLastServiceDateChange(e);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">Auto-updates next service date</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="servicesCompletedInCycle">Visits this billing cycle</Label>
+                    <Input
+                      id="servicesCompletedInCycle"
+                      type="number"
+                      min={0}
+                      className="h-12"
+                      placeholder="e.g. 1"
+                      {...register('servicesCompletedInCycle', { valueAsNumber: true })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Of {visitsPerCycle} total {visitsPerCycle === 1 ? 'visit' : 'visits'} this cycle
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="totalServicesCompleted">Total services (all time)</Label>
+                    <Input
+                      id="totalServicesCompleted"
+                      type="number"
+                      min={0}
+                      className="h-12"
+                      placeholder="e.g. 5"
+                      {...register('totalServicesCompleted', { valueAsNumber: true })}
+                    />
+                    <p className="text-xs text-muted-foreground">Including all previous years</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Billing status */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Current billing cycle</p>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="billingCycleStart">Cycle start date</Label>
+                      <Input
+                        id="billingCycleStart"
+                        type="date"
+                        className="h-12"
+                        {...register('billingCycleStart')}
+                        onChange={(e) => {
+                          register('billingCycleStart').onChange(e);
+                          handleBillingCycleStartChange(e);
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">Auto-updates next invoice date</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cycleInvoiceStatus">Invoice status this cycle</Label>
+                      <Select
+                        defaultValue={initialValues?.cycleInvoiceStatus ?? 'not_invoiced'}
+                        onValueChange={(v) => setValue('cycleInvoiceStatus', v as FormData['cycleInvoiceStatus'])}
+                      >
+                        <SelectTrigger className="h-12">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="not_invoiced">Not yet invoiced</SelectItem>
+                          <SelectItem value="invoice_sent">Invoice sent</SelectItem>
+                          <SelectItem value="invoice_paid">Invoice paid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {cycleInvoiceStatus === 'invoice_paid' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="cycleInvoicePaidDate">Payment date</Label>
+                      <Input id="cycleInvoicePaidDate" type="date" className="h-12" {...register('cycleInvoicePaidDate')} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Scheduling overrides */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Scheduling</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="nextServiceDate-import">Next service date</Label>
+                    <Input
+                      id="nextServiceDate-import"
+                      type="date"
+                      className="h-12"
+                      {...register('nextServiceDate')}
+                    />
+                    <p className="text-xs text-muted-foreground">Overrides auto-calculated date above</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nextInvoiceDate">Next invoice date</Label>
+                    <Input id="nextInvoiceDate" type="date" className="h-12" {...register('nextInvoiceDate')} />
+                    <p className="text-xs text-muted-foreground">When to auto-draft the next invoice</p>
+                  </div>
+                </div>
+              </div>
+
             </CardContent>
           </Card>
         )}

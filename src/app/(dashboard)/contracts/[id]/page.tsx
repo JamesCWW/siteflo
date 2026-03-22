@@ -147,6 +147,40 @@ export default async function ContractDetailPage({
         </CardContent>
       </Card>
 
+      {/* Cycle history */}
+      {(contract.contractStartDate || contract.totalServicesCompleted > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Contract history</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+              {contract.contractStartDate && (
+                <span>Started {format(new Date(contract.contractStartDate), 'MMM yyyy')}</span>
+              )}
+              <span>{contract.totalServicesCompleted} service{contract.totalServicesCompleted !== 1 ? 's' : ''} completed</span>
+              {(() => {
+                const visitsPerCycle = Math.max(1, Math.round(contract.billingIntervalMonths / contract.serviceIntervalMonths));
+                if (visitsPerCycle > 1) {
+                  return (
+                    <span>
+                      Current cycle: {contract.servicesCompletedInCycle} of {visitsPerCycle} visits
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+              {contract.cycleInvoiceStatus && contract.cycleInvoiceStatus !== 'not_invoiced' && (
+                <span className="capitalize font-medium text-foreground">
+                  {contract.cycleInvoiceStatus === 'invoice_sent' ? 'Invoice sent' : 'Paid'}
+                  {contract.cycleInvoicePaidDate && ` ${format(new Date(contract.cycleInvoicePaidDate), 'dd MMM yyyy')}`}
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Installation details */}
       {hasInstallDetails && (
         <Card>

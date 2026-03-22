@@ -34,9 +34,15 @@ export const serviceContracts = pgTable('service_contracts', {
   status: text('status', {
     enum: ['active', 'paused', 'expired', 'cancelled']
   }).notNull().default('active'),
+  contractStartDate: timestamp('contract_start_date'),
   lastServiceDate: timestamp('last_service_date'),
   lastJobId: uuid('last_job_id'),
   totalServicesCompleted: integer('total_services_completed').default(0).notNull(),
+  servicesCompletedInCycle: integer('services_completed_in_cycle').default(0).notNull(),
+  cycleInvoiceStatus: text('cycle_invoice_status', {
+    enum: ['not_invoiced', 'invoice_sent', 'invoice_paid'],
+  }).notNull().default('not_invoiced'),
+  cycleInvoicePaidDate: timestamp('cycle_invoice_paid_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

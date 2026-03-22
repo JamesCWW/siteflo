@@ -55,6 +55,25 @@ export default async function EditContractPage({
             ? format(new Date(contract.installationDate), 'yyyy-MM-dd')
             : undefined,
           installationDetails: installDetails ?? undefined,
+          // Import / mid-cycle fields
+          contractStartDate: contract.contractStartDate
+            ? format(new Date(contract.contractStartDate), 'yyyy-MM-dd')
+            : undefined,
+          lastServiceDate: contract.lastServiceDate
+            ? format(new Date(contract.lastServiceDate), 'yyyy-MM-dd')
+            : undefined,
+          servicesCompletedInCycle: contract.servicesCompletedInCycle,
+          totalServicesCompleted: contract.totalServicesCompleted,
+          billingCycleStart: contract.billingCycleStart
+            ? format(new Date(contract.billingCycleStart), 'yyyy-MM-dd')
+            : undefined,
+          cycleInvoiceStatus: contract.cycleInvoiceStatus,
+          cycleInvoicePaidDate: contract.cycleInvoicePaidDate
+            ? format(new Date(contract.cycleInvoicePaidDate), 'yyyy-MM-dd')
+            : undefined,
+          nextInvoiceDate: contract.nextInvoiceDate
+            ? format(new Date(contract.nextInvoiceDate), 'yyyy-MM-dd')
+            : undefined,
         }}
       />
     </div>

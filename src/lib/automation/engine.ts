@@ -22,7 +22,6 @@ import {
   addDays,
   addMonths,
 } from 'date-fns';
-import { count } from 'drizzle-orm';
 import { sendEmail, buildFromAddress } from '@/lib/email/send';
 import { createElement } from 'react';
 import { ServiceDueReminderEmail } from '@/lib/email/templates/service-due-reminder';
@@ -570,28 +569,18 @@ export async function triggerServiceCompleted(opts: {
 
   // Determine billing cycle state
   const visitsPerCycle = Math.max(1, Math.round(contract.billingIntervalMonths / contract.serviceIntervalMonths));
-  const cycleStart = contract.billingCycleStart ?? contract.createdAt;
-
-  const [{ completedCount }] = await db
-    .select({ completedCount: count(jobs.id) })
-    .from(jobs)
-    .where(and(
-      eq(jobs.contractId, opts.contractId),
-      eq(jobs.status, 'completed'),
-      gte(jobs.scheduledStart, cycleStart),
-    ));
-
-  // +1 for the job being completed right now (not yet committed when this runs)
-  const visitsCompletedInCycle = (completedCount ?? 0) + 1;
+  const visitsCompletedInCycle = (contract.servicesCompletedInCycle ?? 0) + 1;
   const cycleComplete = visitsCompletedInCycle >= visitsPerCycle;
 
   await db.update(serviceContracts).set({
     lastServiceDate: opts.completedAt,
     lastJobId: opts.jobId,
     totalServicesCompleted: (contract.totalServicesCompleted ?? 0) + 1,
+    servicesCompletedInCycle: cycleComplete ? 0 : visitsCompletedInCycle,
     nextServiceDate,
     ...(cycleComplete ? {
       billingCycleStart: opts.completedAt,
+      cycleInvoiceStatus: 'not_invoiced',
       nextInvoiceDate: contract.invoiceTiming === 'upfront'
         ? addMonths(opts.completedAt, contract.billingIntervalMonths)
         : null,

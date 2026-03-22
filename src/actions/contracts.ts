@@ -28,6 +28,15 @@ const ContractSchema = z.object({
     location: z.string().optional(),
     warrantyExpiry: z.string().optional(),
   }).optional(),
+  // Import / mid-cycle fields
+  contractStartDate: z.string().optional(),
+  lastServiceDate: z.string().optional(),
+  servicesCompletedInCycle: z.coerce.number().int().min(0).optional(),
+  totalServicesCompleted: z.coerce.number().int().min(0).optional(),
+  billingCycleStart: z.string().optional(),
+  cycleInvoiceStatus: z.enum(['not_invoiced', 'invoice_sent', 'invoice_paid']).optional(),
+  cycleInvoicePaidDate: z.string().optional(),
+  nextInvoiceDate: z.string().optional(),
 });
 
 export async function getContracts(filter?: 'due-this-month' | 'due-next-month' | 'overdue' | 'all') {
@@ -150,8 +159,10 @@ export async function createContract(input: unknown) {
       serviceIntervalMonths: parsed.serviceIntervalMonths,
       billingIntervalMonths: parsed.billingIntervalMonths,
       invoiceTiming: parsed.invoiceTiming,
-      billingCycleStart: now,
+      contractStartDate: parsed.contractStartDate ? new Date(parsed.contractStartDate) : null,
+      billingCycleStart: parsed.billingCycleStart ? new Date(parsed.billingCycleStart) : now,
       nextServiceDate: new Date(parsed.nextServiceDate),
+      nextInvoiceDate: parsed.nextInvoiceDate ? new Date(parsed.nextInvoiceDate) : null,
       reminderLeadDays: parsed.reminderLeadDays,
       templateId: parsed.templateId || null,
       standardPricePence: parsed.standardPriceGbp
@@ -161,6 +172,11 @@ export async function createContract(input: unknown) {
         ? new Date(parsed.installationDate)
         : null,
       installationDetails: parsed.installationDetails ?? {},
+      lastServiceDate: parsed.lastServiceDate ? new Date(parsed.lastServiceDate) : null,
+      totalServicesCompleted: parsed.totalServicesCompleted ?? 0,
+      servicesCompletedInCycle: parsed.servicesCompletedInCycle ?? 0,
+      cycleInvoiceStatus: parsed.cycleInvoiceStatus ?? 'not_invoiced',
+      cycleInvoicePaidDate: parsed.cycleInvoicePaidDate ? new Date(parsed.cycleInvoicePaidDate) : null,
       status: 'active',
     }).returning();
 
@@ -169,6 +185,7 @@ export async function createContract(input: unknown) {
     return { success: true, data: contract };
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('createContract validation failed:', JSON.stringify(error.flatten(), null, 2));
       return { success: false, error: 'Invalid input', details: error.flatten() };
     }
     console.error('createContract failed:', error);
@@ -191,7 +208,10 @@ export async function updateContract(id: string, input: unknown) {
         serviceIntervalMonths: parsed.serviceIntervalMonths,
         billingIntervalMonths: parsed.billingIntervalMonths,
         invoiceTiming: parsed.invoiceTiming,
+        contractStartDate: parsed.contractStartDate ? new Date(parsed.contractStartDate) : null,
+        billingCycleStart: parsed.billingCycleStart ? new Date(parsed.billingCycleStart) : null,
         nextServiceDate: new Date(parsed.nextServiceDate),
+        nextInvoiceDate: parsed.nextInvoiceDate ? new Date(parsed.nextInvoiceDate) : null,
         reminderLeadDays: parsed.reminderLeadDays,
         templateId: parsed.templateId || null,
         standardPricePence: parsed.standardPriceGbp != null
@@ -201,6 +221,11 @@ export async function updateContract(id: string, input: unknown) {
           ? new Date(parsed.installationDate)
           : null,
         installationDetails: parsed.installationDetails ?? {},
+        lastServiceDate: parsed.lastServiceDate ? new Date(parsed.lastServiceDate) : null,
+        totalServicesCompleted: parsed.totalServicesCompleted ?? undefined,
+        servicesCompletedInCycle: parsed.servicesCompletedInCycle ?? undefined,
+        cycleInvoiceStatus: parsed.cycleInvoiceStatus ?? undefined,
+        cycleInvoicePaidDate: parsed.cycleInvoicePaidDate ? new Date(parsed.cycleInvoicePaidDate) : null,
         updatedAt: new Date(),
       })
       .where(and(eq(serviceContracts.id, id), eq(serviceContracts.tenantId, user.tenantId)))
