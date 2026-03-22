@@ -1,7 +1,7 @@
 /**
  * Dev script: resets onboarding state for a tenant so you can re-test the wizard.
  *
- * Run with:  npx tsx src/scripts/reset-onboarding.ts
+ * Run with:  npx tsx scripts/reset-onboarding.ts
  *
  * By default only resets the onboardingComplete flag.
  * Pass --clear-templates to also delete all seeded data so the full seed
@@ -31,7 +31,7 @@ import {
   quotes,
   quoteLineItems,
   automationLogs,
-} from '../db/schema';
+} from './src/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
