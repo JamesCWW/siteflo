@@ -148,8 +148,11 @@ export async function createFirstCustomerAndContract(input: unknown) {
       customerId: customer.id,
       refNumber,
       title: parsed.installationDescription || 'Service Contract',
-      nextDueDate: new Date(parsed.nextServiceDate),
-      intervalMonths: 12,
+      nextServiceDate: new Date(parsed.nextServiceDate),
+      serviceIntervalMonths: 12,
+      billingIntervalMonths: 12,
+      invoiceTiming: 'upfront',
+      billingCycleStart: new Date(),
       reminderLeadDays: 30,
     });
 

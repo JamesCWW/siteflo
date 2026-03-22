@@ -67,7 +67,7 @@ export default async function ContractsPage({
       ) : (
         <div className="grid gap-3">
           {rows.map(({ contract, customer }) => {
-            const isDue = isPast(new Date(contract.nextDueDate));
+            const isDue = isPast(new Date(contract.nextServiceDate));
             return (
               <Link key={contract.id} href={`/contracts/${contract.id}`}>
                 <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
@@ -92,8 +92,8 @@ export default async function ContractsPage({
                           }
                           <span>
                             {isDue ? 'Overdue — was due ' : 'Due '}
-                            {format(new Date(contract.nextDueDate), 'dd MMM yyyy')}
-                            {' '}({formatDistanceToNow(new Date(contract.nextDueDate), { addSuffix: true })})
+                            {format(new Date(contract.nextServiceDate), 'dd MMM yyyy')}
+                            {' '}({formatDistanceToNow(new Date(contract.nextServiceDate), { addSuffix: true })})
                           </span>
                         </div>
                       </div>

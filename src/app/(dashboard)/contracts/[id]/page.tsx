@@ -31,7 +31,7 @@ export default async function ContractDetailPage({
 
   const { contract, customer } = result.data;
   const serviceHistory = jobsResult.data ?? [];
-  const isDue = isPast(new Date(contract.nextDueDate));
+  const isDue = isPast(new Date(contract.nextServiceDate));
   const hasInstallDetails = contract.installationDetails &&
     Object.values(contract.installationDetails).some(Boolean);
 
@@ -64,7 +64,7 @@ export default async function ContractDetailPage({
         <div className="flex items-center gap-3 bg-destructive/10 text-destructive px-4 py-3 rounded-lg">
           <AlertCircle className="h-5 w-5 shrink-0" />
           <p className="text-sm font-medium">
-            Service overdue — was due {format(new Date(contract.nextDueDate), 'dd MMM yyyy')}
+            Service overdue — was due {format(new Date(contract.nextServiceDate), 'dd MMM yyyy')}
           </p>
         </div>
       )}
@@ -93,10 +93,10 @@ export default async function ContractDetailPage({
             <div>
               <p className="text-xs text-muted-foreground">Next due date</p>
               <p className={cn('text-sm font-medium', isDue && 'text-destructive')}>
-                {format(new Date(contract.nextDueDate), 'dd MMM yyyy')}
+                {format(new Date(contract.nextServiceDate), 'dd MMM yyyy')}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(contract.nextDueDate), { addSuffix: true })}
+                {formatDistanceToNow(new Date(contract.nextServiceDate), { addSuffix: true })}
               </p>
             </div>
           </div>
@@ -105,7 +105,12 @@ export default async function ContractDetailPage({
             <RefreshCw className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">Service interval</p>
-              <p className="text-sm font-medium">Every {contract.intervalMonths} month{contract.intervalMonths !== 1 ? 's' : ''}</p>
+              <p className="text-sm font-medium">Every {contract.serviceIntervalMonths} month{contract.serviceIntervalMonths !== 1 ? 's' : ''}</p>
+              {contract.billingIntervalMonths !== contract.serviceIntervalMonths && (
+                <p className="text-xs text-muted-foreground">
+                  Billed every {contract.billingIntervalMonths} months ({contract.invoiceTiming.replace(/_/g, ' ')})
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">{contract.reminderLeadDays} day reminder</p>
             </div>
           </div>

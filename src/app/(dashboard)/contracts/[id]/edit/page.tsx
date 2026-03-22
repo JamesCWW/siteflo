@@ -41,8 +41,10 @@ export default async function EditContractPage({
         templates={templates}
         initialValues={{
           title: contract.title,
-          intervalMonths: contract.intervalMonths,
-          nextDueDate: format(new Date(contract.nextDueDate), 'yyyy-MM-dd'),
+          serviceIntervalMonths: contract.serviceIntervalMonths,
+          billingIntervalMonths: contract.billingIntervalMonths,
+          invoiceTiming: contract.invoiceTiming,
+          nextServiceDate: format(new Date(contract.nextServiceDate), 'yyyy-MM-dd'),
           reminderLeadDays: contract.reminderLeadDays,
           templateId: contract.templateId ?? undefined,
           standardPriceGbp: contract.standardPricePence != null

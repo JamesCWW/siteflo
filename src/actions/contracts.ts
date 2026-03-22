@@ -7,13 +7,15 @@ import { eq, and, lte, gte, lt } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/supabase/get-user';
 import { generateRefNumber } from '@/lib/utils/ref-numbers';
-import { addMonths, startOfMonth, endOfMonth, addMonths as addM } from 'date-fns';
+import { addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 const ContractSchema = z.object({
   customerId: z.string().uuid('Invalid customer'),
   title: z.string().min(1, 'Title is required'),
-  intervalMonths: z.coerce.number().int().min(1).max(120).default(12),
-  nextDueDate: z.string().min(1, 'Next due date is required'),
+  serviceIntervalMonths: z.coerce.number().int().min(1).max(120).default(12),
+  billingIntervalMonths: z.coerce.number().int().min(1).max(120).default(12),
+  invoiceTiming: z.enum(['upfront', 'after_each_visit', 'after_cycle_complete']).default('upfront'),
+  nextServiceDate: z.string().min(1, 'Next service date is required'),
   reminderLeadDays: z.coerce.number().int().min(1).max(365).default(30),
   templateId: z.string().uuid().optional().or(z.literal('')),
   standardPriceGbp: z.coerce.number().min(0).optional(),
@@ -37,20 +39,20 @@ export async function getContracts(filter?: 'due-this-month' | 'due-next-month' 
     if (filter === 'due-this-month') {
       whereClause = and(
         eq(serviceContracts.tenantId, user.tenantId),
-        gte(serviceContracts.nextDueDate, startOfMonth(now)),
-        lte(serviceContracts.nextDueDate, endOfMonth(now))
+        gte(serviceContracts.nextServiceDate, startOfMonth(now)),
+        lte(serviceContracts.nextServiceDate, endOfMonth(now))
       );
     } else if (filter === 'due-next-month') {
       const nextMonth = addMonths(now, 1);
       whereClause = and(
         eq(serviceContracts.tenantId, user.tenantId),
-        gte(serviceContracts.nextDueDate, startOfMonth(nextMonth)),
-        lte(serviceContracts.nextDueDate, endOfMonth(nextMonth))
+        gte(serviceContracts.nextServiceDate, startOfMonth(nextMonth)),
+        lte(serviceContracts.nextServiceDate, endOfMonth(nextMonth))
       );
     } else if (filter === 'overdue') {
       whereClause = and(
         eq(serviceContracts.tenantId, user.tenantId),
-        lt(serviceContracts.nextDueDate, now)
+        lt(serviceContracts.nextServiceDate, now)
       );
     } else {
       whereClause = eq(serviceContracts.tenantId, user.tenantId);
@@ -69,7 +71,7 @@ export async function getContracts(filter?: 'due-this-month' | 'due-next-month' 
       .from(serviceContracts)
       .innerJoin(customers, eq(serviceContracts.customerId, customers.id))
       .where(whereClause)
-      .orderBy(serviceContracts.nextDueDate);
+      .orderBy(serviceContracts.nextServiceDate);
 
     return { success: true, data };
   } catch (error) {
@@ -113,7 +115,7 @@ export async function getContractsForCustomer(customerId: string) {
           eq(serviceContracts.customerId, customerId)
         )
       )
-      .orderBy(serviceContracts.nextDueDate);
+      .orderBy(serviceContracts.nextServiceDate);
 
     return { success: true, data };
   } catch (error) {
@@ -137,6 +139,7 @@ export async function createContract(input: unknown) {
     if (!customer) return { success: false, error: 'Customer not found' };
 
     const refNumber = await generateRefNumber('CON');
+    const now = new Date();
 
     const [contract] = await db.insert(serviceContracts).values({
       tenantId: user.tenantId,
@@ -144,8 +147,11 @@ export async function createContract(input: unknown) {
       refNumber,
       title: parsed.title,
       description: parsed.description || null,
-      intervalMonths: parsed.intervalMonths,
-      nextDueDate: new Date(parsed.nextDueDate),
+      serviceIntervalMonths: parsed.serviceIntervalMonths,
+      billingIntervalMonths: parsed.billingIntervalMonths,
+      invoiceTiming: parsed.invoiceTiming,
+      billingCycleStart: now,
+      nextServiceDate: new Date(parsed.nextServiceDate),
       reminderLeadDays: parsed.reminderLeadDays,
       templateId: parsed.templateId || null,
       standardPricePence: parsed.standardPriceGbp
@@ -182,8 +188,10 @@ export async function updateContract(id: string, input: unknown) {
       .set({
         title: parsed.title,
         description: parsed.description || null,
-        intervalMonths: parsed.intervalMonths,
-        nextDueDate: new Date(parsed.nextDueDate),
+        serviceIntervalMonths: parsed.serviceIntervalMonths,
+        billingIntervalMonths: parsed.billingIntervalMonths,
+        invoiceTiming: parsed.invoiceTiming,
+        nextServiceDate: new Date(parsed.nextServiceDate),
         reminderLeadDays: parsed.reminderLeadDays,
         templateId: parsed.templateId || null,
         standardPricePence: parsed.standardPriceGbp != null

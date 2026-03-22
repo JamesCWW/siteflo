@@ -12,13 +12,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createContract, updateContract } from '@/actions/contracts';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { addMonths, format } from 'date-fns';
+import { formatPence } from '@/lib/utils/money';
 
 const schema = z.object({
   title: z.string().min(1, 'Service type is required'),
-  intervalMonths: z.number().int().min(1).max(120),
-  nextDueDate: z.string().min(1, 'Next due date is required'),
+  serviceIntervalMonths: z.number().int().min(1).max(120),
+  billingIntervalMonths: z.number().int().min(1).max(120),
+  invoiceTiming: z.enum(['upfront', 'after_each_visit', 'after_cycle_complete']),
+  nextServiceDate: z.string().min(1, 'Next service date is required'),
   reminderLeadDays: z.number().int().min(1).max(365),
   templateId: z.string().optional(),
   standardPriceGbp: z.number().min(0).optional(),
@@ -46,6 +49,20 @@ type ContractFormProps = {
   initialValues?: Partial<FormData>;
 };
 
+function intervalLabel(months: number): string {
+  if (months === 1) return 'monthly';
+  if (months === 3) return 'quarterly';
+  if (months === 6) return 'every 6 months';
+  if (months === 12) return 'annually';
+  return `every ${months} month${months !== 1 ? 's' : ''}`;
+}
+
+function timingLabel(timing: string): string {
+  if (timing === 'upfront') return 'invoiced upfront';
+  if (timing === 'after_each_visit') return 'invoiced after each visit';
+  return 'invoiced after all visits';
+}
+
 export function ContractForm({
   customerId,
   customerName,
@@ -61,33 +78,61 @@ export function ContractForm({
     && Object.values(initialValues.installationDetails).some(Boolean);
   const [showInstallDetails, setShowInstallDetails] = useState(hasInitialInstallDetails ?? false);
 
-  const defaultNextDue = format(addMonths(new Date(), 12), 'yyyy-MM-dd');
+  const defaultNextService = format(addMonths(new Date(), 12), 'yyyy-MM-dd');
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      intervalMonths: 12,
-      nextDueDate: defaultNextDue,
+      serviceIntervalMonths: 12,
+      billingIntervalMonths: 12,
+      invoiceTiming: 'upfront',
+      nextServiceDate: defaultNextService,
       reminderLeadDays: 30,
       ...initialValues,
     },
   });
 
-  const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const serviceInterval = watch('serviceIntervalMonths');
+  const billingInterval = watch('billingIntervalMonths');
+  const invoiceTiming = watch('invoiceTiming');
+  const standardPriceGbp = watch('standardPriceGbp');
+
+  const splitBilling = billingInterval !== serviceInterval;
+  const visitsPerCycle = splitBilling
+    ? Math.max(1, Math.round(billingInterval / serviceInterval))
+    : 1;
+
+  // Summary line
+  const pricePence = standardPriceGbp ? Math.round(standardPriceGbp * 100) : null;
+  const summaryParts: string[] = [];
+  if (pricePence) summaryParts.push(`${formatPence(pricePence)} ${timingLabel(invoiceTiming)} ${intervalLabel(billingInterval)}`);
+  if (splitBilling) {
+    summaryParts.push(`${visitsPerCycle} service visit${visitsPerCycle !== 1 ? 's' : ''} per ${billingInterval === 12 ? 'year' : `${billingInterval} months`} (${intervalLabel(serviceInterval)})`);
+  } else {
+    summaryParts.push(`1 service visit ${intervalLabel(serviceInterval)}`);
+  }
+  const summary = summaryParts.join(' — ');
+
+  const handleServiceIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const months = parseInt(e.target.value, 10);
     if (!isNaN(months) && months > 0) {
-      setValue('nextDueDate', format(addMonths(new Date(), months), 'yyyy-MM-dd'));
+      setValue('nextServiceDate', format(addMonths(new Date(), months), 'yyyy-MM-dd'));
     }
   };
 
   const onSubmit = async (data: FormData) => {
     setError(null);
+    // If billing = service, always default to upfront (no timing shown)
+    const payload = {
+      ...data,
+      invoiceTiming: data.billingIntervalMonths === data.serviceIntervalMonths
+        ? 'upfront' as const
+        : data.invoiceTiming,
+      templateId: data.templateId || undefined,
+    };
 
     if (mode === 'edit' && contractId) {
-      const result = await updateContract(contractId, {
-        ...data,
-        templateId: data.templateId || undefined,
-      });
+      const result = await updateContract(contractId, payload);
       if (result.success) {
         router.push(`/contracts/${contractId}`);
         router.refresh();
@@ -95,11 +140,7 @@ export function ContractForm({
         setError(result.error ?? 'Something went wrong');
       }
     } else {
-      const result = await createContract({
-        ...data,
-        customerId,
-        templateId: data.templateId || undefined,
-      });
+      const result = await createContract({ ...payload, customerId });
       if (result.success && result.data) {
         router.push(`/contracts/${result.data.id}`);
         router.refresh();
@@ -151,37 +192,86 @@ export function ContractForm({
             {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
           </div>
 
+          {/* Service & billing intervals */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="intervalMonths">Service interval <span className="text-destructive">*</span></Label>
+              <Label htmlFor="serviceIntervalMonths">Service interval <span className="text-destructive">*</span></Label>
               <div className="relative">
                 <Input
-                  id="intervalMonths"
+                  id="serviceIntervalMonths"
                   type="number"
                   min={1}
                   max={120}
                   className="h-12 pr-16"
-                  {...register('intervalMonths', { valueAsNumber: true })}
-                  onChange={handleIntervalChange}
+                  {...register('serviceIntervalMonths', { valueAsNumber: true })}
+                  onChange={handleServiceIntervalChange}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">months</span>
               </div>
-              {errors.intervalMonths && <p className="text-xs text-destructive">{errors.intervalMonths.message}</p>}
+              <p className="text-xs text-muted-foreground">How often do you visit?</p>
+              {errors.serviceIntervalMonths && <p className="text-xs text-destructive">{errors.serviceIntervalMonths.message}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="nextDueDate">Next due date <span className="text-destructive">*</span></Label>
-              <Input
-                id="nextDueDate"
-                type="date"
-                className="h-12"
-                {...register('nextDueDate')}
-              />
-              {errors.nextDueDate && <p className="text-xs text-destructive">{errors.nextDueDate.message}</p>}
+              <Label htmlFor="billingIntervalMonths">Billing interval <span className="text-muted-foreground text-xs font-normal">(optional)</span></Label>
+              <div className="relative">
+                <Input
+                  id="billingIntervalMonths"
+                  type="number"
+                  min={1}
+                  max={120}
+                  className="h-12 pr-16"
+                  {...register('billingIntervalMonths', { valueAsNumber: true })}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">months</span>
+              </div>
+              <p className="text-xs text-muted-foreground">How often do you invoice?</p>
+              {errors.billingIntervalMonths && <p className="text-xs text-destructive">{errors.billingIntervalMonths.message}</p>}
             </div>
           </div>
 
+          {/* Invoice timing — only shown when billing ≠ service */}
+          {splitBilling && (
+            <div className="space-y-2 rounded-lg border border-dashed p-4">
+              <Label className="flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                When should the invoice go out?
+              </Label>
+              <Select
+                defaultValue={initialValues?.invoiceTiming ?? 'upfront'}
+                onValueChange={(v) => setValue('invoiceTiming', v as FormData['invoiceTiming'])}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upfront">At the start of the billing period (upfront)</SelectItem>
+                  <SelectItem value="after_each_visit">After each service visit</SelectItem>
+                  <SelectItem value="after_cycle_complete">After all visits in the period are complete</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Summary */}
+          {(pricePence || splitBilling) && (
+            <div className="rounded-md bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
+              {summary}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="nextServiceDate">Next service date <span className="text-destructive">*</span></Label>
+              <Input
+                id="nextServiceDate"
+                type="date"
+                className="h-12"
+                {...register('nextServiceDate')}
+              />
+              {errors.nextServiceDate && <p className="text-xs text-destructive">{errors.nextServiceDate.message}</p>}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="standardPriceGbp">Standard price <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <div className="relative">
@@ -197,7 +287,9 @@ export function ContractForm({
                 />
               </div>
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="reminderLeadDays">Reminder lead time <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <div className="relative">
@@ -212,26 +304,26 @@ export function ContractForm({
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">days</span>
               </div>
             </div>
-          </div>
 
-          {templates.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="templateId">Service template <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Select
-                defaultValue={initialValues?.templateId || undefined}
-                onValueChange={(v) => setValue('templateId', v)}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="Select a template..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+            {templates.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="templateId">Service template <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Select
+                  defaultValue={initialValues?.templateId || undefined}
+                  onValueChange={(v) => setValue('templateId', v)}
+                >
+                  <SelectTrigger className="h-12">
+                    <SelectValue placeholder="Select a template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Notes <span className="text-muted-foreground text-xs">(optional)</span></Label>

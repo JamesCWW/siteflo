@@ -132,7 +132,7 @@ export default async function CustomerDetailPage({
                           <ContractStatusBadge status={contract.status} />
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                          {contract.refNumber} · Every {contract.intervalMonths} month{contract.intervalMonths !== 1 ? 's' : ''}
+                          {contract.refNumber} · Every {contract.serviceIntervalMonths} month{contract.serviceIntervalMonths !== 1 ? 's' : ''}
                           {contract.standardPricePence != null && ` · ${formatPence(contract.standardPricePence)}`}
                         </p>
                         <div className="flex items-center gap-1.5 mt-2 text-sm">

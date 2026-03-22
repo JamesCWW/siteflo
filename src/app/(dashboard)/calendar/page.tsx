@@ -45,8 +45,8 @@ export default async function CalendarPage() {
       and(
         eq(serviceContracts.tenantId, user.tenantId),
         eq(serviceContracts.status, 'active'),
-        gte(serviceContracts.nextDueDate, rangeStart),
-        lte(serviceContracts.nextDueDate, rangeEnd),
+        gte(serviceContracts.nextServiceDate, rangeStart),
+        lte(serviceContracts.nextServiceDate, rangeEnd),
       )
     );
 
@@ -69,7 +69,7 @@ export default async function CalendarPage() {
   const contractsDue = contractRows.map(({ contract, customer }) => ({
     id: contract.id,
     title: contract.title,
-    nextDueDate: contract.nextDueDate.toISOString(),
+    nextServiceDate: contract.nextServiceDate.toISOString(),
     customerName: customer.name,
   }));
 

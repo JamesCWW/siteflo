@@ -21,8 +21,14 @@ export const serviceContracts = pgTable('service_contracts', {
     photos?: string[];
     customFields?: Record<string, string>;
   }>().default({}),
-  intervalMonths: integer('interval_months').notNull().default(12),
-  nextDueDate: timestamp('next_due_date').notNull(),
+  serviceIntervalMonths: integer('service_interval_months').notNull().default(12),
+  billingIntervalMonths: integer('billing_interval_months').notNull().default(12),
+  invoiceTiming: text('invoice_timing', {
+    enum: ['upfront', 'after_each_visit', 'after_cycle_complete'],
+  }).notNull().default('upfront'),
+  billingCycleStart: timestamp('billing_cycle_start'),
+  nextInvoiceDate: timestamp('next_invoice_date'),
+  nextServiceDate: timestamp('next_service_date').notNull(),
   reminderLeadDays: integer('reminder_lead_days').notNull().default(30),
   standardPricePence: integer('standard_price_pence'),
   status: text('status', {

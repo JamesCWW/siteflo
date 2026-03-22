@@ -50,7 +50,7 @@ type CalendarJob = {
 type ContractDue = {
   id: string;
   title: string;
-  nextDueDate: string;
+  nextServiceDate: string;
   customerName: string;
 };
 
@@ -190,7 +190,7 @@ export function CalendarView({ jobs, contractsDue, technicians }: CalendarViewPr
           {/* Gutter spacer */}
           <div style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }} className="border-r border-gray-200" />
           {weekDays.map((day) => {
-            const dueCounts = contractsDue.filter((c) => isSameDay(new Date(c.nextDueDate), day));
+            const dueCounts = contractsDue.filter((c) => isSameDay(new Date(c.nextServiceDate), day));
             return (
               <div
                 key={day.toISOString()}
@@ -403,7 +403,7 @@ export function CalendarView({ jobs, contractsDue, technicians }: CalendarViewPr
                   (j) => j.scheduledStart && isSameDay(new Date(j.scheduledStart), d)
                 );
                 const dueCounts = contractsDue.filter((c) =>
-                  isSameDay(new Date(c.nextDueDate), d)
+                  isSameDay(new Date(c.nextServiceDate), d)
                 );
 
                 return (
@@ -484,7 +484,7 @@ export function CalendarView({ jobs, contractsDue, technicians }: CalendarViewPr
     const dayJobs = filteredJobs.filter(
       (j) => j.scheduledStart && isSameDay(new Date(j.scheduledStart), currentDate)
     );
-    const dueCounts = contractsDue.filter((c) => isSameDay(new Date(c.nextDueDate), currentDate));
+    const dueCounts = contractsDue.filter((c) => isSameDay(new Date(c.nextServiceDate), currentDate));
 
     return (
       <div className="flex flex-col h-full">

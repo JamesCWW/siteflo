@@ -20,7 +20,9 @@ import {
   subHours,
   format,
   addDays,
+  addMonths,
 } from 'date-fns';
+import { count } from 'drizzle-orm';
 import { sendEmail, buildFromAddress } from '@/lib/email/send';
 import { createElement } from 'react';
 import { ServiceDueReminderEmail } from '@/lib/email/templates/service-due-reminder';
@@ -122,7 +124,7 @@ export async function runContractRenewalChecks(): Promise<{ processed: number; s
 
   for (const { contract, customer, tenant } of rows) {
     processed++;
-    const daysUntilDue = differenceInDays(new Date(contract.nextDueDate), now);
+    const daysUntilDue = differenceInDays(new Date(contract.nextServiceDate), now);
 
     const bookingUrl = `${APP_URL}/portal/book/${tenant.slug}?contractId=${contract.id}`;
     const fromAddress = buildFromAddress(tenant.branding.companyName);
@@ -170,7 +172,7 @@ export async function runContractRenewalChecks(): Promise<{ processed: number; s
             customerName: customer.name,
             companyName: tenant.branding.companyName,
             serviceTitle: contract.title,
-            nextDueDate: format(new Date(contract.nextDueDate), 'dd MMM yyyy'),
+            nextServiceDate: format(new Date(contract.nextServiceDate), 'dd MMM yyyy'),
             bookingUrl,
             replyEmail: tenant.branding.companyEmail,
             companyPhone: tenant.branding.companyPhone,
@@ -217,7 +219,7 @@ export async function runContractRenewalChecks(): Promise<{ processed: number; s
           html: `
             <p>Hi ${ownerUser.fullName},</p>
             <p>The service for <strong>${customer.name}</strong> (${contract.title}) was due on
-            <strong>${format(new Date(contract.nextDueDate), 'dd MMM yyyy')}</strong>
+            <strong>${format(new Date(contract.nextServiceDate), 'dd MMM yyyy')}</strong>
             and has not yet been booked.</p>
             <p>You may want to reach out to the customer directly.</p>
             <p>— Siteflo Automation</p>
@@ -467,7 +469,7 @@ export async function triggerBookingConfirmed(opts: {
       .where(eq(serviceContracts.id, opts.contractId))
       .limit(1);
 
-    if (contract?.standardPricePence) {
+    if (contract?.standardPricePence && contract.invoiceTiming === 'upfront') {
       const vatRate = tenant.settings.defaultVatRate ?? 20;
       const subtotal = contract.standardPricePence;
       const vatPence = Math.round(subtotal * (vatRate / 100));
@@ -539,4 +541,119 @@ export async function triggerBookingConfirmed(opts: {
       'notify_owner', 'sent', {}
     );
   }
+}
+
+// ─── Service Completed Trigger ───────────────────────────────────────────────
+
+export async function triggerServiceCompleted(opts: {
+  tenantId: string;
+  jobId: string;
+  contractId: string;
+  completedAt: Date;
+}): Promise<void> {
+  const [contract] = await db
+    .select()
+    .from(serviceContracts)
+    .where(eq(serviceContracts.id, opts.contractId))
+    .limit(1);
+  if (!contract) return;
+
+  const [tenant] = await db
+    .select()
+    .from(tenants)
+    .where(eq(tenants.id, opts.tenantId))
+    .limit(1);
+  if (!tenant) return;
+
+  // Advance next service date
+  const nextServiceDate = addMonths(opts.completedAt, contract.serviceIntervalMonths);
+
+  // Determine billing cycle state
+  const visitsPerCycle = Math.max(1, Math.round(contract.billingIntervalMonths / contract.serviceIntervalMonths));
+  const cycleStart = contract.billingCycleStart ?? contract.createdAt;
+
+  const [{ completedCount }] = await db
+    .select({ completedCount: count(jobs.id) })
+    .from(jobs)
+    .where(and(
+      eq(jobs.contractId, opts.contractId),
+      eq(jobs.status, 'completed'),
+      gte(jobs.scheduledStart, cycleStart),
+    ));
+
+  // +1 for the job being completed right now (not yet committed when this runs)
+  const visitsCompletedInCycle = (completedCount ?? 0) + 1;
+  const cycleComplete = visitsCompletedInCycle >= visitsPerCycle;
+
+  await db.update(serviceContracts).set({
+    lastServiceDate: opts.completedAt,
+    lastJobId: opts.jobId,
+    totalServicesCompleted: (contract.totalServicesCompleted ?? 0) + 1,
+    nextServiceDate,
+    ...(cycleComplete ? {
+      billingCycleStart: opts.completedAt,
+      nextInvoiceDate: contract.invoiceTiming === 'upfront'
+        ? addMonths(opts.completedAt, contract.billingIntervalMonths)
+        : null,
+    } : {}),
+    updatedAt: opts.completedAt,
+  }).where(eq(serviceContracts.id, opts.contractId));
+
+  // ── Invoice drafting based on timing ──
+  if (!contract.standardPricePence) return;
+
+  const shouldDraftInvoice =
+    contract.invoiceTiming === 'after_each_visit' ||
+    (contract.invoiceTiming === 'after_cycle_complete' && cycleComplete);
+
+  if (!shouldDraftInvoice) return;
+
+  const rule = await findActiveRule(opts.tenantId, 'contract_booking_confirmed');
+  if (!rule) return;
+
+  const vatRate = tenant.settings.defaultVatRate ?? 20;
+  const visitsLabel = contract.invoiceTiming === 'after_each_visit' && visitsPerCycle > 1
+    ? ` (visit ${visitsCompletedInCycle} of ${visitsPerCycle})`
+    : '';
+  const unitPrice = contract.invoiceTiming === 'after_each_visit'
+    ? Math.round(contract.standardPricePence / visitsPerCycle)
+    : contract.standardPricePence;
+
+  const subtotal = unitPrice;
+  const vatPence = Math.round(subtotal * (vatRate / 100));
+  const totalPence = subtotal + vatPence;
+  const termsDays = tenant.settings.invoicePaymentTermsDays ?? 14;
+  const refNumber = await generateRefNumber('INV');
+  const accessToken = randomBytes(32).toString('hex');
+
+  const [newInvoice] = await db
+    .insert(invoices)
+    .values({
+      tenantId: opts.tenantId,
+      jobId: opts.jobId,
+      customerId: contract.customerId,
+      refNumber,
+      status: 'draft',
+      subtotalPence: subtotal,
+      vatPence,
+      totalPence,
+      dueDate: addDays(opts.completedAt, termsDays),
+      accessToken,
+    })
+    .returning();
+
+  await db.insert(invoiceLineItems).values({
+    invoiceId: newInvoice.id,
+    description: `${contract.title}${visitsLabel}`,
+    quantity: 1,
+    unitPricePence: unitPrice,
+    totalPence: unitPrice,
+    sortOrder: 0,
+  });
+
+  await logEntry(opts.tenantId, rule.id,
+    { jobId: opts.jobId, contractId: opts.contractId, invoiceId: newInvoice.id },
+    'create_draft_invoice', 'sent',
+    { invoiceRef: refNumber, timing: contract.invoiceTiming }
+  );
 }

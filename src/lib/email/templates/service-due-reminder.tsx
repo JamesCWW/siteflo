@@ -2,7 +2,7 @@ interface ServiceDueReminderEmailProps {
   customerName: string;
   companyName: string;
   serviceTitle: string;
-  nextDueDate: string;
+  nextServiceDate: string;
   bookingUrl: string;
   replyEmail: string;
   companyPhone: string;
@@ -14,7 +14,7 @@ export function ServiceDueReminderEmail({
   customerName,
   companyName,
   serviceTitle,
-  nextDueDate,
+  nextServiceDate,
   bookingUrl,
   replyEmail,
   companyPhone,
@@ -37,12 +37,12 @@ export function ServiceDueReminderEmail({
         {isFollowUp ? (
           <p>
             We wanted to follow up on our recent reminder — your <strong>{serviceTitle}</strong>{' '}
-            is due on <strong>{nextDueDate}</strong>. There&apos;s still time to book your appointment.
+            is due on <strong>{nextServiceDate}</strong>. There&apos;s still time to book your appointment.
           </p>
         ) : (
           <p>
             Your <strong>{serviceTitle}</strong> is coming up. We have you scheduled for{' '}
-            <strong>{nextDueDate}</strong> — please book your appointment at your earliest convenience.
+            <strong>{nextServiceDate}</strong> — please book your appointment at your earliest convenience.
           </p>
         )}
 

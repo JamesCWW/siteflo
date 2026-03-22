@@ -2,13 +2,14 @@
 
 import { z } from 'zod';
 import { db } from '@/db/client';
-import { jobs, jobPhotos, serviceContracts, customers, serviceTemplates, users, tenants } from '@/db/schema';
+import { jobs, jobPhotos, customers, serviceTemplates, users, tenants } from '@/db/schema';
 import { eq, and, gte, lte, desc, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/supabase/get-user';
 import { generateRefNumber } from '@/lib/utils/ref-numbers';
-import { addMonths, format } from 'date-fns';
+import { format } from 'date-fns';
 import { generateServiceReportPDF } from '@/lib/pdf/generate';
+import { triggerServiceCompleted } from '@/lib/automation/engine';
 
 export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'invoiced' | 'paid' | 'cancelled';
 
@@ -264,29 +265,13 @@ export async function completeJob(id: string) {
     }
 
     if (job.contractId) {
-      const [contract] = await db
-        .select()
-        .from(serviceContracts)
-        .where(and(
-          eq(serviceContracts.id, job.contractId),
-          eq(serviceContracts.tenantId, user.tenantId),
-        ))
-        .limit(1);
-
-      if (contract) {
-        const nextDueDate = addMonths(completedAt, contract.intervalMonths);
-        await db
-          .update(serviceContracts)
-          .set({
-            lastServiceDate: completedAt,
-            lastJobId: id,
-            totalServicesCompleted: (contract.totalServicesCompleted ?? 0) + 1,
-            nextDueDate,
-            updatedAt: completedAt,
-          })
-          .where(eq(serviceContracts.id, job.contractId));
-        revalidatePath(`/contracts/${job.contractId}`);
-      }
+      await triggerServiceCompleted({
+        tenantId: user.tenantId,
+        jobId: id,
+        contractId: job.contractId,
+        completedAt,
+      });
+      revalidatePath(`/contracts/${job.contractId}`);
     }
 
     revalidatePath('/jobs');
