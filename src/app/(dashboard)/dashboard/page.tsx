@@ -19,15 +19,8 @@ import { cn } from '@/lib/utils';
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 
-  // Parallel data fetching
-  const [
-    contractsDueSoon,
-    upcomingJobsResult,
-    draftInvoicesResult,
-    overdueInvoicesResult,
-    sentInvoicesResult,
-    recentLogs,
-  ] = await Promise.all([
+  // Parallel data fetching — allSettled so one failure doesn't blank the page
+  const results = await Promise.allSettled([
     db
       .select({ contract: serviceContracts, customer: { id: customers.id, name: customers.name } })
       .from(serviceContracts)
@@ -54,6 +47,13 @@ export default async function DashboardPage() {
       .orderBy(desc(automationLogs.executedAt))
       .limit(10),
   ]);
+
+  const contractsDueSoon = results[0].status === 'fulfilled' ? results[0].value : [];
+  const upcomingJobsResult = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
+  const draftInvoicesResult = results[2].status === 'fulfilled' ? results[2].value : { data: [] };
+  const overdueInvoicesResult = results[3].status === 'fulfilled' ? results[3].value : { data: [] };
+  const sentInvoicesResult = results[4].status === 'fulfilled' ? results[4].value : { data: [] };
+  const recentLogs = results[5].status === 'fulfilled' ? results[5].value : [];
 
   const upcomingJobs = (upcomingJobsResult.data ?? []).slice(0, 5);
   const draftInvoices = draftInvoicesResult.data ?? [];
