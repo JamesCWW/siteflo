@@ -32,7 +32,7 @@ type ServiceReportPDFProps = {
   refNumber: string;
   customerName: string;
   siteAddress: string;
-  scheduledDate?: string;
+  nextServiceDate?: string;
   completedDate?: string;
   fieldSchema: FieldDefinition[];
   fieldValues: Record<string, unknown>;
@@ -82,7 +82,7 @@ export function ServiceReportPDF({
   refNumber,
   customerName,
   siteAddress,
-  scheduledDate,
+  nextServiceDate,
   completedDate,
   fieldSchema,
   fieldValues,
@@ -201,7 +201,13 @@ export function ServiceReportPDF({
     },
   });
 
-  const dataFields = fieldSchema.filter(f => f.type !== 'section-header' && f.type !== 'photo' && f.type !== 'signature');
+  const dataFields = fieldSchema.filter(f =>
+    f.type !== 'section-header' &&
+    f.type !== 'photo' &&
+    f.type !== 'signature' &&
+    f.id !== 'service_date' &&
+    f.id !== 'next_service_due'
+  );
   const photoFields = fieldSchema.filter(f => f.type === 'photo');
   const signatureField = showSignature ? fieldSchema.find(f => f.type === 'signature') : undefined;
   const sigUrl = signatureField ? fieldValues[signatureField.id] : undefined;
@@ -240,16 +246,16 @@ export function ServiceReportPDF({
             <Text style={styles.metaLabel}>Site address</Text>
             <Text style={styles.metaValue}>{siteAddress}</Text>
           </View>
-          {scheduledDate ? (
-            <View style={styles.metaBlock}>
-              <Text style={styles.metaLabel}>Scheduled</Text>
-              <Text style={styles.metaValue}>{scheduledDate}</Text>
-            </View>
-          ) : null}
           {completedDate ? (
             <View style={styles.metaBlock}>
               <Text style={styles.metaLabel}>Completed</Text>
               <Text style={styles.metaValue}>{completedDate}</Text>
+            </View>
+          ) : null}
+          {nextServiceDate ? (
+            <View style={styles.metaBlock}>
+              <Text style={styles.metaLabel}>Next service</Text>
+              <Text style={styles.metaValue}>{nextServiceDate}</Text>
             </View>
           ) : null}
         </View>

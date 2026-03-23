@@ -41,7 +41,7 @@ export async function generateServiceReportPDF(params: {
   refNumber: string;
   customerName: string;
   siteAddress: string;
-  scheduledDate?: string;
+  nextServiceDate?: string;
   completedDate?: string;
   fieldSchema: FieldDefinition[];
   fieldValues: Record<string, unknown>;
@@ -55,7 +55,7 @@ export async function generateServiceReportPDF(params: {
       refNumber: params.refNumber,
       customerName: params.customerName,
       siteAddress: params.siteAddress,
-      scheduledDate: params.scheduledDate,
+      nextServiceDate: params.nextServiceDate,
       completedDate: params.completedDate,
       fieldSchema: params.fieldSchema,
       fieldValues: params.fieldValues,

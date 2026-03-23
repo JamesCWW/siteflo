@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { FileText, Loader2 } from 'lucide-react';
@@ -11,29 +11,28 @@ interface GenerateReportButtonProps {
 
 export function GenerateReportButton({ jobId }: GenerateReportButtonProps) {
   const router = useRouter();
-  const [isPending, setIsPending] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = async () => {
-    setIsPending(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/pdf/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'service-report', id: jobId }),
-      });
-      const data = await res.json() as { pdfUrl?: string; error?: string };
-      if (!res.ok || data.error) {
-        setError(data.error ?? 'Failed to generate report');
-      } else {
-        router.refresh();
+  const handleGenerate = () => {
+    startTransition(async () => {
+      setError(null);
+      try {
+        const res = await fetch('/api/pdf/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'service-report', id: jobId }),
+        });
+        const data = await res.json() as { pdfUrl?: string; error?: string };
+        if (!res.ok || data.error) {
+          setError(data.error ?? 'Failed to generate report');
+        } else {
+          router.refresh();
+        }
+      } catch {
+        setError('Failed to generate report');
       }
-    } catch {
-      setError('Failed to generate report');
-    } finally {
-      setIsPending(false);
-    }
+    });
   };
 
   return (

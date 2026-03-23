@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DynamicForm } from '@/components/forms/dynamic-form';
@@ -19,20 +19,20 @@ export function DynamicFormSection({
   jobId, fields, initialValues, canEdit,
 }: DynamicFormSectionProps) {
   const [values, setValues] = useState<Record<string, unknown>>(initialValues);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving, startSave] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    setError(null);
-    const result = await saveJobFieldValues(jobId, values);
-    setIsSaving(false);
-    if (result.success) {
-      setSavedAt(new Date());
-    } else {
-      setError(result.error ?? 'Failed to save');
-    }
+  const handleSave = () => {
+    startSave(async () => {
+      setError(null);
+      const result = await saveJobFieldValues(jobId, values);
+      if (result.success) {
+        setSavedAt(new Date());
+      } else {
+        setError(result.error ?? 'Failed to save');
+      }
+    });
   };
 
   return (

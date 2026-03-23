@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { updateJobStatus, completeJob } from '@/actions/jobs';
@@ -14,19 +14,19 @@ interface JobStatusActionsProps {
 
 export function JobStatusActions({ jobId, currentStatus }: JobStatusActionsProps) {
   const router = useRouter();
-  const [isPending, setIsPending] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const doAction = async (action: () => Promise<{ success: boolean; error?: string }>) => {
-    setIsPending(true);
-    setError(null);
-    const result = await action();
-    setIsPending(false);
-    if (result.success) {
-      router.refresh();
-    } else {
-      setError(result.error ?? 'Something went wrong');
-    }
+  const doAction = (action: () => Promise<{ success: boolean; error?: string }>) => {
+    startTransition(async () => {
+      setError(null);
+      const result = await action();
+      if (result.success) {
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Something went wrong');
+      }
+    });
   };
 
   return (

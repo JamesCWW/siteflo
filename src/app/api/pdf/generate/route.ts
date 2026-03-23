@@ -4,7 +4,7 @@ import { jobs, customers, serviceTemplates, tenants, invoices, invoiceLineItems,
 import { eq, and } from 'drizzle-orm';
 import { createClient } from '@/lib/supabase/server';
 import { generateServiceReportPDF, generateInvoicePDF } from '@/lib/pdf/generate';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
         .filter(Boolean)
         .join(', ');
 
+      const fieldVals = (job.fieldValues as Record<string, unknown>) ?? {};
+      const rawNextService = fieldVals['next_service_due'];
+      let nextServiceDate: string | undefined;
+      if (rawNextService && typeof rawNextService === 'string') {
+        try { nextServiceDate = format(parseISO(rawNextService), 'dd MMM yyyy'); } catch { nextServiceDate = rawNextService; }
+      }
+
       const result = await generateServiceReportPDF({
         tenantId: user.tenantId,
         jobId: id,
@@ -53,14 +60,12 @@ export async function POST(request: NextRequest) {
         refNumber: job.refNumber,
         customerName: customer.name,
         siteAddress,
-        scheduledDate: job.scheduledStart
-          ? format(new Date(job.scheduledStart), 'dd MMM yyyy')
-          : undefined,
+        nextServiceDate,
         completedDate: job.actualEnd
           ? format(new Date(job.actualEnd), 'dd MMM yyyy HH:mm')
           : undefined,
         fieldSchema: template?.fieldSchema ?? [],
-        fieldValues: (job.fieldValues as Record<string, unknown>) ?? {},
+        fieldValues: fieldVals,
         footerText: template?.pdfConfig?.footerText,
         showSignature: template?.pdfConfig?.showSignature ?? true,
       });

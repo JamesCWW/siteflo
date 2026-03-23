@@ -7,7 +7,7 @@ import { eq, and, gte, lte, desc, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/supabase/get-user';
 import { generateRefNumber } from '@/lib/utils/ref-numbers';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { generateServiceReportPDF } from '@/lib/pdf/generate';
 import { triggerServiceCompleted } from '@/lib/automation/engine';
 
@@ -243,6 +243,13 @@ export async function completeJob(id: string) {
       const addr = updatedJob.siteAddress ?? customerRow.address;
       const siteAddress = [addr.line1, addr.line2, addr.city, addr.postcode].filter(Boolean).join(', ');
 
+      const fieldVals = (updatedJob.fieldValues as Record<string, unknown>) ?? {};
+      const rawNextService = fieldVals['next_service_due'];
+      let nextServiceDate: string | undefined;
+      if (rawNextService && typeof rawNextService === 'string') {
+        try { nextServiceDate = format(parseISO(rawNextService), 'dd MMM yyyy'); } catch { nextServiceDate = rawNextService; }
+      }
+
       const pdfResult = await generateServiceReportPDF({
         tenantId: user.tenantId,
         jobId: id,
@@ -251,10 +258,10 @@ export async function completeJob(id: string) {
         refNumber: updatedJob.refNumber,
         customerName: customerRow.name,
         siteAddress,
-        scheduledDate: updatedJob.scheduledStart ? format(new Date(updatedJob.scheduledStart), 'dd MMM yyyy') : undefined,
+        nextServiceDate,
         completedDate: format(completedAt, 'dd MMM yyyy HH:mm'),
         fieldSchema: templateRow?.fieldSchema ?? [],
-        fieldValues: (updatedJob.fieldValues as Record<string, unknown>) ?? {},
+        fieldValues: fieldVals,
         footerText: templateRow?.pdfConfig?.footerText,
         showSignature: templateRow?.pdfConfig?.showSignature ?? true,
       });
