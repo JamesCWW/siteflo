@@ -99,7 +99,7 @@ function jobTopOffset(job: CalendarJob): number {
   const start = new Date(job.scheduledStart);
   const h = getHours(start) - HOUR_START;
   const m = getMinutes(start);
-  return h * HOUR_HEIGHT + (m / 60) * HOUR_HEIGHT;
+  return Math.max(0, h * HOUR_HEIGHT + (m / 60) * HOUR_HEIGHT);
 }
 
 function jobHeightPx(job: CalendarJob): number {

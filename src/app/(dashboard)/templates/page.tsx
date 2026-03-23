@@ -62,7 +62,7 @@ export default async function TemplatesPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
                   )}
                   <p className="text-xs text-muted-foreground mt-1">
-                    {template.fieldSchema.length} fields
+                    {(template.fieldSchema ?? []).length} fields
                     {' · '}
                     Updated {format(new Date(template.updatedAt), 'dd MMM yyyy')}
                   </p>

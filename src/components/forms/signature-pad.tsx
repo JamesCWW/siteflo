@@ -14,6 +14,9 @@ interface SignaturePadProps {
 export function SignaturePadComponent({ value, onChange, label }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const spRef = useRef<SignaturePad | null>(null);
+  // Keep a ref to the latest onChange so the endStroke handler never goes stale
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,7 +37,8 @@ export function SignaturePadComponent({ value, onChange, label }: SignaturePadPr
     if (value) sp.fromDataURL(value);
 
     const handleEndStroke = () => {
-      onChange(sp.isEmpty() ? null : sp.toDataURL());
+      // Always use the latest onChange via ref — avoids stale closure
+      onChangeRef.current(sp.isEmpty() ? null : sp.toDataURL());
     };
     sp.addEventListener('endStroke', handleEndStroke);
 

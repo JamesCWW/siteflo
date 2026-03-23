@@ -7,10 +7,11 @@ import { JobForm } from '@/components/jobs/job-form';
 export default async function NewJobPage({
   searchParams,
 }: {
-  searchParams: Promise<{ contractId?: string }>;
+  searchParams: Promise<{ contractId?: string; scheduledStart?: string }>;
 }) {
   const params = await searchParams;
   const contractId = params.contractId;
+  const scheduledStart = params.scheduledStart;
 
   const [techResult, templateResult] = await Promise.all([
     getTechnicians(),
@@ -49,6 +50,7 @@ export default async function NewJobPage({
           prefilledCustomerName={customer.name}
           prefilledTemplateId={contract.templateId ?? undefined}
           prefilledTemplateName={templateName}
+          prefilledScheduledStart={scheduledStart}
           technicians={technicians}
         />
       </div>

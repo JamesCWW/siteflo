@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getJob } from '@/actions/jobs';
 import { getTenantSettings } from '@/actions/settings';
+import { getQuotesForJob } from '@/actions/quotes';
 import { JobStatusBadge } from '@/components/jobs/job-status-badge';
 import { JobStatusActions } from '@/components/jobs/job-status-actions';
 import { DynamicFormSection } from './dynamic-form-section';
@@ -12,6 +13,7 @@ import { GenerateReportButton } from './generate-report-button';
 import { QuoteSheet } from './quote-sheet';
 import type { JobStatus } from '@/actions/jobs';
 import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 import {
   User, MapPin, Calendar, Wrench, ArrowLeft, FileText, Hash, Receipt, Download,
 } from 'lucide-react';
@@ -22,15 +24,17 @@ export default async function JobDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [result, settingsResult] = await Promise.all([
+  const [result, settingsResult, quotesResult] = await Promise.all([
     getJob(id),
     getTenantSettings(),
+    getQuotesForJob(id),
   ]);
 
   if (!result.success || !result.data) notFound();
 
   const { job, customer, template, photos } = result.data;
   const defaultVatRate = settingsResult.data?.settings?.defaultVatRate ?? 20;
+  const jobQuotes = quotesResult.data ?? [];
   const canEdit = job.status === 'scheduled' || job.status === 'in_progress';
   const canQuote = job.status !== 'cancelled';
 
@@ -203,6 +207,37 @@ export default async function JobDetailPage({
         photos={photos}
         canAdd={canEdit}
       />
+
+      {/* Quotes */}
+      {jobQuotes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Quotes / additional work</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {jobQuotes.map((quote) => (
+              <div key={quote.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                <div>
+                  <p className="text-sm font-medium">{quote.refNumber}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(quote.createdAt), 'dd MMM yyyy')}
+                    {' · '}
+                    £{(quote.totalPence / 100).toFixed(2)}
+                  </p>
+                </div>
+                <Badge variant={
+                  quote.status === 'approved' ? 'default' :
+                  quote.status === 'sent' ? 'secondary' :
+                  quote.status === 'declined' ? 'destructive' :
+                  'outline'
+                }>
+                  {quote.status}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

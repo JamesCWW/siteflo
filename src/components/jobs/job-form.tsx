@@ -52,6 +52,7 @@ interface JobFormProps {
   prefilledCustomerName?: string;
   prefilledTemplateId?: string;
   prefilledTemplateName?: string;
+  prefilledScheduledStart?: string;
   // Standalone mode
   customers?: Customer[];
   templates?: Template[];
@@ -66,6 +67,7 @@ export function JobForm({
   prefilledCustomerName,
   prefilledTemplateId,
   prefilledTemplateName,
+  prefilledScheduledStart,
   customers = [],
   templates = [],
   technicians,
@@ -82,6 +84,9 @@ export function JobForm({
 
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      scheduledStart: prefilledScheduledStart,
+    },
   });
 
   const scheduledStart = watch('scheduledStart');
