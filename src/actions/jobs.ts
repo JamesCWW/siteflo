@@ -14,7 +14,7 @@ import { sendEmail, buildFromAddress } from '@/lib/email/send';
 import { ServiceReportDeliveredEmail } from '@/lib/email/templates/service-report-delivered';
 import { createElement } from 'react';
 
-export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'invoiced' | 'paid' | 'cancelled';
+export type JobStatus = 'scheduled' | 'completed' | 'invoiced' | 'paid' | 'cancelled';
 
 const JobSchema = z.object({
   customerId: z.string().uuid('Invalid customer'),
@@ -198,8 +198,6 @@ export async function updateJobStatus(id: string, status: JobStatus) {
       status,
       updatedAt: new Date(),
     };
-    if (status === 'in_progress') setValues.actualStart = new Date();
-
     const [job] = await db
       .update(jobs)
       .set(setValues)

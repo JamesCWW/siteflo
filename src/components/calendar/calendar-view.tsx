@@ -76,7 +76,7 @@ const GUTTER_WIDTH = 52; // px — time label gutter
 
 const STATUS_STYLES: Record<string, { bg: string; border: string; text: string }> = {
   scheduled:   { bg: 'bg-blue-50',    border: 'border-blue-500',   text: 'text-blue-900' },
-  in_progress: { bg: 'bg-amber-50',   border: 'border-amber-500',  text: 'text-amber-900' },
+  in_progress: { bg: 'bg-blue-50',    border: 'border-blue-500',   text: 'text-blue-900' },
   completed:   { bg: 'bg-green-50',   border: 'border-green-600',  text: 'text-green-900' },
   invoiced:    { bg: 'bg-purple-50',  border: 'border-purple-500', text: 'text-purple-900' },
   paid:        { bg: 'bg-emerald-50', border: 'border-emerald-600',text: 'text-emerald-900' },
@@ -85,7 +85,7 @@ const STATUS_STYLES: Record<string, { bg: string; border: string; text: string }
 
 const STATUS_DOT: Record<string, string> = {
   scheduled:   'bg-blue-500',
-  in_progress: 'bg-amber-500',
+  in_progress: 'bg-blue-500',
   completed:   'bg-green-600',
   invoiced:    'bg-purple-500',
   paid:        'bg-emerald-600',

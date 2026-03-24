@@ -10,7 +10,6 @@ import type { JobStatus } from '@/actions/jobs';
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: '', label: 'All jobs' },
   { value: 'scheduled', label: 'Scheduled' },
-  { value: 'in_progress', label: 'In progress' },
   { value: 'completed', label: 'Completed' },
   { value: 'invoiced', label: 'Invoiced' },
   { value: 'paid', label: 'Paid' },

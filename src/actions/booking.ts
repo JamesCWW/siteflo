@@ -118,7 +118,7 @@ export async function getAvailableSlots(
           eq(jobs.tenantId, tenantId),
           gte(jobs.scheduledStart, dayStartBound),
           lte(jobs.scheduledStart, dayEndBound),
-          // Only block scheduled/in_progress jobs
+          // Only block scheduled jobs
           eq(jobs.status, 'scheduled'),
         )
       );

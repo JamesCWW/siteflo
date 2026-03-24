@@ -17,7 +17,7 @@ export const jobs = pgTable('jobs', {
     enum: ['contract_service', 'one_off', 'callback', 'inspection']
   }).notNull().default('one_off'),
   status: text('status', {
-    enum: ['scheduled', 'in_progress', 'completed', 'invoiced', 'paid', 'cancelled']
+    enum: ['scheduled', 'completed', 'invoiced', 'paid', 'cancelled']
   }).notNull().default('scheduled'),
   scheduledStart: timestamp('scheduled_start'),
   scheduledEnd: timestamp('scheduled_end'),
