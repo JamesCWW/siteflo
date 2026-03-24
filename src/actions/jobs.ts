@@ -183,7 +183,8 @@ export async function saveJobFieldValues(id: string, fieldValues: Record<string,
       .where(and(eq(jobs.id, id), eq(jobs.tenantId, user.tenantId)))
       .returning();
     if (!job) return { success: false, error: 'Job not found' };
-    revalidatePath(`/jobs/${id}`);
+    // No revalidatePath here — the wizard handles refresh on close to avoid
+    // mid-wizard page refreshes that corrupt the step navigation state.
     return { success: true, data: job };
   } catch (error) {
     console.error('saveJobFieldValues failed:', error);
@@ -324,7 +325,6 @@ export async function addJobPhoto(jobId: string, storageUrl: string, caption?: s
       caption: caption || null,
     }).returning();
 
-    revalidatePath(`/jobs/${jobId}`);
     return { success: true, data: photo };
   } catch (error) {
     console.error('addJobPhoto failed:', error);
@@ -338,7 +338,6 @@ export async function deleteJobPhoto(photoId: string, jobId: string) {
     await db
       .delete(jobPhotos)
       .where(and(eq(jobPhotos.id, photoId), eq(jobPhotos.tenantId, user.tenantId)));
-    revalidatePath(`/jobs/${jobId}`);
     return { success: true };
   } catch (error) {
     console.error('deleteJobPhoto failed:', error);

@@ -202,8 +202,14 @@ export function DynamicForm({ fields, values, onChange, disabled, jobId }: Dynam
 
             {field.type === 'photo' && (
               <PhotoCapture
-                value={typeof current === 'string' ? current : undefined}
-                onChange={(v) => set(field.id, v ?? '')}
+                value={
+                  Array.isArray(current)
+                    ? (current as string[])
+                    : typeof current === 'string' && current
+                      ? [current]
+                      : []
+                }
+                onChange={(v) => set(field.id, v)}
                 jobId={jobId}
                 fieldId={field.id}
               />

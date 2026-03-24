@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { addJobPhoto, deleteJobPhoto } from '@/actions/jobs';
@@ -21,11 +22,17 @@ interface PhotoSectionProps {
 }
 
 export function PhotoSection({ jobId, photos: initialPhotos, canAdd }: PhotoSectionProps) {
+  const router = useRouter();
   const [photos, setPhotos] = useState(initialPhotos);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  // Sync when server re-renders with fresh data
+  useEffect(() => {
+    setPhotos(initialPhotos);
+  }, [initialPhotos]);
 
   const uploadPhoto = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -53,6 +60,9 @@ export function PhotoSection({ jobId, photos: initialPhotos, canAdd }: PhotoSect
       const result = await addJobPhoto(jobId, publicUrl);
       if (result.success && result.data) {
         setPhotos((prev) => [...prev, result.data as Photo]);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to save photo record');
       }
     } catch (err) {
       console.error('Photo upload failed:', err);
@@ -72,6 +82,7 @@ export function PhotoSection({ jobId, photos: initialPhotos, canAdd }: PhotoSect
     const result = await deleteJobPhoto(photoId, jobId);
     if (result.success) {
       setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      router.refresh();
     }
   };
 

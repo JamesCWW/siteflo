@@ -6,14 +6,14 @@ import { Camera, Upload, X, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface PhotoCaptureProps {
-  value?: string;
-  onChange: (value: string | null) => void;
+  value?: string[];
+  onChange: (value: string[]) => void;
   label?: string;
   jobId?: string;
   fieldId?: string;
 }
 
-export function PhotoCapture({ value, onChange, label, jobId, fieldId }: PhotoCaptureProps) {
+export function PhotoCapture({ value = [], onChange, label, jobId, fieldId }: PhotoCaptureProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -24,7 +24,6 @@ export function PhotoCapture({ value, onChange, label, jobId, fieldId }: PhotoCa
     setIsProcessing(true);
     setUploadError(null);
 
-    // If jobId is provided, upload to Supabase storage
     if (jobId) {
       try {
         const supabase = createClient();
@@ -34,24 +33,25 @@ export function PhotoCapture({ value, onChange, label, jobId, fieldId }: PhotoCa
         const ext = file.name.split('.').pop() ?? 'jpg';
         const path = `${user.id}/jobs/${jobId}/fields/${fieldId ?? 'photo'}/${Date.now()}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadErr } = await supabase.storage
           .from('service-photos')
           .upload(path, file, { upsert: false });
 
-        if (uploadError) throw uploadError;
+        if (uploadErr) throw uploadErr;
 
         const { data: { publicUrl } } = supabase.storage
           .from('service-photos')
           .getPublicUrl(path);
 
-        onChange(publicUrl);
+        onChange([...value, publicUrl]);
       } catch (err) {
         console.error('Photo upload failed:', err);
         setUploadError('Upload failed — check the service-photos bucket exists in Supabase');
         // Fall back to base64
         const reader = new FileReader();
         reader.onload = (e) => {
-          onChange(e.target?.result as string);
+          onChange([...value, e.target?.result as string]);
+          setIsProcessing(false);
         };
         reader.readAsDataURL(file);
       } finally {
@@ -63,7 +63,7 @@ export function PhotoCapture({ value, onChange, label, jobId, fieldId }: PhotoCa
     // No jobId — store as base64
     const reader = new FileReader();
     reader.onload = (e) => {
-      onChange(e.target?.result as string);
+      onChange([...value, e.target?.result as string]);
       setIsProcessing(false);
     };
     reader.readAsDataURL(file);
@@ -75,53 +75,65 @@ export function PhotoCapture({ value, onChange, label, jobId, fieldId }: PhotoCa
     e.target.value = '';
   };
 
+  const removePhoto = (index: number) => {
+    onChange(value.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="space-y-2">
       {label && <p className="text-sm text-muted-foreground">{label}</p>}
-      {value ? (
-        <div className="relative inline-block">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={value}
-            alt="Captured photo"
-            className="max-h-48 rounded-lg border object-cover"
-          />
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 shadow-sm"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1"
-            onClick={() => cameraInputRef.current?.click()}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Camera className="h-4 w-4 mr-2" />
-            )}
-            {isProcessing ? 'Uploading…' : 'Take photo'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isProcessing}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
+
+      {/* Existing photos grid */}
+      {value.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {value.map((url, i) => (
+            <div key={i} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`Photo ${i + 1}`}
+                className="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removePhoto(i)}
+                className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 shadow-sm"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* Upload buttons — always visible so user can add more */}
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 flex-1"
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Camera className="h-4 w-4 mr-2" />
+          )}
+          {isProcessing ? 'Uploading…' : 'Take photo'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 flex-1"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isProcessing}
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          Upload
+        </Button>
+      </div>
+
       {uploadError && (
         <p className="text-xs text-destructive">{uploadError}</p>
       )}
