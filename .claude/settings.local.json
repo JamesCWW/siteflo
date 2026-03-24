@@ -26,7 +26,9 @@
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(find /Users/james/Siteflo -name service-report-pdf.tsx -o -name *service*report*pdf*)",
       "Bash(ls \"/Users/james/Siteflo/src/app/\\(dashboard\\)/jobs/[id]/\")",
-      "Bash(find /Users/james/Siteflo/src/app/api -name *.ts)"
+      "Bash(find /Users/james/Siteflo/src/app/api -name *.ts)",
+      "Bash(grep -r \"data-scroll-locked\\\\|removeScroll\\\\|scroll-locked\" /Users/james/Siteflo/node_modules/react-remove-scroll/dist/*.cjs)",
+      "Bash(grep -r --radix /Users/james/Siteflo/src/)"
     ]
   }
 }

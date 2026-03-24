@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Check, ChevronDown, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { createJob } from '@/actions/jobs';
 
 const DURATION_PRESETS = [
@@ -58,6 +60,94 @@ interface JobFormProps {
   templates?: Template[];
   // Shared
   technicians: Technician[];
+}
+
+function CustomerCombobox({
+  customers,
+  value,
+  onChange,
+}: {
+  customers: Customer[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const filtered = customers.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selected = customers.find((c) => c.id === value);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          'flex h-12 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm',
+          'focus:outline-none focus:ring-1 focus:ring-ring',
+          !selected && 'text-muted-foreground'
+        )}
+      >
+        <span className="line-clamp-1">{selected ? selected.name : 'Select customer...'}</span>
+        <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+          <div className="flex items-center border-b px-3">
+            <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search customers..."
+              className="flex h-10 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No customers found.</p>
+            ) : (
+              filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(c.id);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                >
+                  {c.name}
+                  {c.id === value && (
+                    <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+                      <Check className="h-4 w-4" />
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function JobForm({
@@ -159,16 +249,11 @@ export function JobForm({
                 {prefilledCustomerName}
               </p>
             ) : (
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CustomerCombobox
+                customers={customers}
+                value={selectedCustomerId}
+                onChange={setSelectedCustomerId}
+              />
             )}
           </div>
 
