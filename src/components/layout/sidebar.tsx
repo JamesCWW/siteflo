@@ -14,7 +14,7 @@ import {
   ClipboardList,
   Package,
   Zap,
-  Upload,
+  Bell,
 } from 'lucide-react';
 
 const navItems = [
@@ -27,7 +27,7 @@ const navItems = [
   { href: '/templates', label: 'Templates', icon: ClipboardList },
   { href: '/parts', label: 'Parts library', icon: Package },
   { href: '/automation', label: 'Automation', icon: Zap },
-  { href: '/import', label: 'Import', icon: Upload },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

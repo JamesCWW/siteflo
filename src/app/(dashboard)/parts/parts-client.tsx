@@ -10,6 +10,7 @@ import { deactivatePart } from '@/actions/parts';
 import { formatPence } from '@/lib/utils/money';
 import { useRouter } from 'next/navigation';
 import { Plus, Pencil, Trash2, Package, Clock } from 'lucide-react';
+import { PartsImportModal } from '@/components/parts/parts-import-modal';
 
 type Part = {
   id: string;
@@ -43,10 +44,13 @@ export function PartsClient({ parts }: PartsClientProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">Parts library</h1>
-        <Button className="h-12" onClick={() => setShowNew(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add item
-        </Button>
+        <div className="flex gap-2">
+          <PartsImportModal />
+          <Button className="h-12" onClick={() => setShowNew(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add item
+          </Button>
+        </div>
       </div>
 
       {parts.length === 0 ? (

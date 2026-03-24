@@ -15,9 +15,10 @@ interface DynamicFormProps {
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
   disabled?: boolean;
+  jobId?: string;
 }
 
-export function DynamicForm({ fields, values, onChange, disabled }: DynamicFormProps) {
+export function DynamicForm({ fields, values, onChange, disabled, jobId }: DynamicFormProps) {
   const sorted = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
 
   const set = (id: string, value: unknown) => {
@@ -203,6 +204,8 @@ export function DynamicForm({ fields, values, onChange, disabled }: DynamicFormP
               <PhotoCapture
                 value={typeof current === 'string' ? current : undefined}
                 onChange={(v) => set(field.id, v ?? '')}
+                jobId={jobId}
+                fieldId={field.id}
               />
             )}
           </div>

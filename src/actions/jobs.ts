@@ -2,14 +2,17 @@
 
 import { z } from 'zod';
 import { db } from '@/db/client';
-import { jobs, jobPhotos, customers, serviceTemplates, users, tenants } from '@/db/schema';
-import { eq, and, gte, lte, desc, asc } from 'drizzle-orm';
+import { jobs, jobPhotos, customers, serviceTemplates, users, tenants, quotes, invoices } from '@/db/schema';
+import { eq, and, gte, lte, desc, asc, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/supabase/get-user';
 import { generateRefNumber } from '@/lib/utils/ref-numbers';
 import { format, parseISO } from 'date-fns';
 import { generateServiceReportPDF } from '@/lib/pdf/generate';
 import { triggerServiceCompleted } from '@/lib/automation/engine';
+import { sendEmail, buildFromAddress } from '@/lib/email/send';
+import { ServiceReportDeliveredEmail } from '@/lib/email/templates/service-report-delivered';
+import { createElement } from 'react';
 
 export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'invoiced' | 'paid' | 'cancelled';
 
@@ -342,5 +345,119 @@ export async function deleteJobPhoto(photoId: string, jobId: string) {
   } catch (error) {
     console.error('deleteJobPhoto failed:', error);
     return { success: false, error: 'Failed to delete photo' };
+  }
+}
+
+export async function deleteJob(id: string) {
+  try {
+    const user = await getCurrentUser();
+
+    const [job] = await db
+      .select({ id: jobs.id, contractId: jobs.contractId })
+      .from(jobs)
+      .where(and(eq(jobs.id, id), eq(jobs.tenantId, user.tenantId)))
+      .limit(1);
+    if (!job) return { success: false, error: 'Job not found' };
+
+    // Delete quotes for this job (line items cascade)
+    await db.delete(quotes).where(and(eq(quotes.jobId, id), eq(quotes.tenantId, user.tenantId)));
+    // Delete invoices for this job (line items cascade)
+    await db.delete(invoices).where(and(eq(invoices.jobId, id), eq(invoices.tenantId, user.tenantId)));
+    // Delete job photos (also has cascade on job delete, but explicit is safer)
+    await db.delete(jobPhotos).where(eq(jobPhotos.jobId, id));
+    // Delete the job
+    await db.delete(jobs).where(and(eq(jobs.id, id), eq(jobs.tenantId, user.tenantId)));
+
+    revalidatePath('/jobs');
+    if (job.contractId) revalidatePath(`/contracts/${job.contractId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('deleteJob failed:', error);
+    return { success: false, error: 'Failed to delete job' };
+  }
+}
+
+export async function sendServiceReport(id: string) {
+  try {
+    const user = await getCurrentUser();
+
+    const [row] = await db
+      .select({ job: jobs, customer: customers, template: serviceTemplates, tenant: tenants })
+      .from(jobs)
+      .innerJoin(customers, eq(jobs.customerId, customers.id))
+      .leftJoin(serviceTemplates, eq(jobs.templateId, serviceTemplates.id))
+      .innerJoin(tenants, eq(jobs.tenantId, tenants.id))
+      .where(and(eq(jobs.id, id), eq(jobs.tenantId, user.tenantId)))
+      .limit(1);
+
+    if (!row) return { success: false, error: 'Job not found' };
+
+    const { job, customer, template, tenant } = row;
+
+    if (!customer.email) return { success: false, error: 'Customer has no email address' };
+
+    let pdfUrl = job.pdfUrl;
+
+    // Generate PDF if not already generated
+    if (!pdfUrl) {
+      const addr = job.siteAddress ?? customer.address;
+      const siteAddress = [addr.line1, addr.line2, addr.city, addr.postcode].filter(Boolean).join(', ');
+      const completedAt = job.actualEnd ?? new Date();
+
+      const fieldVals = (job.fieldValues as Record<string, unknown>) ?? {};
+      const rawNextService = fieldVals['next_service_due'];
+      let nextServiceDate: string | undefined;
+      if (rawNextService && typeof rawNextService === 'string') {
+        try { nextServiceDate = format(parseISO(rawNextService), 'dd MMM yyyy'); } catch { nextServiceDate = rawNextService; }
+      }
+
+      const pdfResult = await generateServiceReportPDF({
+        tenantId: user.tenantId,
+        jobId: id,
+        branding: tenant.branding,
+        reportTitle: template?.pdfConfig?.title ?? 'Service Report',
+        refNumber: job.refNumber,
+        customerName: customer.name,
+        siteAddress,
+        nextServiceDate,
+        completedDate: format(completedAt, 'dd MMM yyyy HH:mm'),
+        fieldSchema: template?.fieldSchema ?? [],
+        fieldValues: fieldVals,
+        footerText: template?.pdfConfig?.footerText,
+        showSignature: template?.pdfConfig?.showSignature ?? true,
+      });
+
+      if (!pdfResult.success) return { success: false, error: 'Failed to generate PDF' };
+      pdfUrl = pdfResult.pdfUrl;
+      await db.update(jobs).set({ pdfUrl }).where(eq(jobs.id, id));
+    }
+
+    const companyName = tenant.branding?.companyName ?? 'Your service provider';
+    const addr = job.siteAddress ?? customer.address;
+    const siteAddress = [addr.line1, addr.city].filter(Boolean).join(', ');
+
+    await sendEmail({
+      to: customer.email,
+      subject: `Your service report – ${job.refNumber}`,
+      from: buildFromAddress(companyName),
+      replyTo: tenant.branding?.companyEmail,
+      react: createElement(ServiceReportDeliveredEmail, {
+        customerName: customer.name,
+        companyName,
+        jobRefNumber: job.refNumber,
+        serviceTitle: template?.name ?? 'Service',
+        completedDate: job.actualEnd ? format(new Date(job.actualEnd), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy'),
+        siteAddress,
+        pdfUrl: pdfUrl ?? undefined,
+        replyEmail: tenant.branding?.companyEmail ?? '',
+        primaryColor: tenant.branding?.primaryColor,
+      }),
+    });
+
+    revalidatePath(`/jobs/${id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('sendServiceReport failed:', error);
+    return { success: false, error: 'Failed to send report' };
   }
 }

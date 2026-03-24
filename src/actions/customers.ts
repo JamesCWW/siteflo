@@ -2,8 +2,8 @@
 
 import { z } from 'zod';
 import { db } from '@/db/client';
-import { customers } from '@/db/schema';
-import { eq, and, ilike, or } from 'drizzle-orm';
+import { customers, serviceContracts, jobs, jobPhotos, quotes, invoices } from '@/db/schema';
+import { eq, and, ilike, or, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/supabase/get-user';
 
@@ -132,5 +132,50 @@ export async function updateCustomer(id: string, input: unknown) {
     }
     console.error('updateCustomer failed:', error);
     return { success: false, error: 'Failed to update customer' };
+  }
+}
+
+export async function deleteCustomer(id: string) {
+  try {
+    const user = await getCurrentUser();
+
+    const [customer] = await db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(and(eq(customers.id, id), eq(customers.tenantId, user.tenantId)))
+      .limit(1);
+    if (!customer) return { success: false, error: 'Customer not found' };
+
+    // Get all jobs for this customer
+    const customerJobs = await db
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(and(eq(jobs.customerId, id), eq(jobs.tenantId, user.tenantId)));
+
+    if (customerJobs.length > 0) {
+      const jobIds = customerJobs.map(j => j.id);
+      // Delete quotes for these jobs
+      await db.delete(quotes).where(inArray(quotes.jobId, jobIds));
+      // Delete invoices for these jobs
+      await db.delete(invoices).where(inArray(invoices.jobId, jobIds));
+      // Delete job photos
+      await db.delete(jobPhotos).where(inArray(jobPhotos.jobId, jobIds));
+      // Delete jobs
+      await db.delete(jobs).where(inArray(jobs.id, jobIds));
+    }
+
+    // Delete contracts
+    await db.delete(serviceContracts).where(
+      and(eq(serviceContracts.customerId, id), eq(serviceContracts.tenantId, user.tenantId))
+    );
+
+    // Delete customer
+    await db.delete(customers).where(and(eq(customers.id, id), eq(customers.tenantId, user.tenantId)));
+
+    revalidatePath('/customers');
+    return { success: true };
+  } catch (error) {
+    console.error('deleteCustomer failed:', error);
+    return { success: false, error: 'Failed to delete customer' };
   }
 }

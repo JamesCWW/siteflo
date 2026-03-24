@@ -2,22 +2,65 @@
 
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, Upload, X } from 'lucide-react';
+import { Camera, Upload, X, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface PhotoCaptureProps {
   value?: string;
   onChange: (value: string | null) => void;
   label?: string;
+  jobId?: string;
+  fieldId?: string;
 }
 
-export function PhotoCapture({ value, onChange, label }: PhotoCaptureProps) {
+export function PhotoCapture({ value, onChange, label, jobId, fieldId }: PhotoCaptureProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
     setIsProcessing(true);
+    setUploadError(null);
+
+    // If jobId is provided, upload to Supabase storage
+    if (jobId) {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const ext = file.name.split('.').pop() ?? 'jpg';
+        const path = `${user.id}/jobs/${jobId}/fields/${fieldId ?? 'photo'}/${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('service-photos')
+          .upload(path, file, { upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('service-photos')
+          .getPublicUrl(path);
+
+        onChange(publicUrl);
+      } catch (err) {
+        console.error('Photo upload failed:', err);
+        setUploadError('Upload failed — check the service-photos bucket exists in Supabase');
+        // Fall back to base64
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          onChange(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // No jobId — store as base64
     const reader = new FileReader();
     reader.onload = (e) => {
       onChange(e.target?.result as string);
@@ -60,8 +103,12 @@ export function PhotoCapture({ value, onChange, label }: PhotoCaptureProps) {
             onClick={() => cameraInputRef.current?.click()}
             disabled={isProcessing}
           >
-            <Camera className="h-4 w-4 mr-2" />
-            Take photo
+            {isProcessing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Camera className="h-4 w-4 mr-2" />
+            )}
+            {isProcessing ? 'Uploading…' : 'Take photo'}
           </Button>
           <Button
             type="button"
@@ -74,6 +121,9 @@ export function PhotoCapture({ value, onChange, label }: PhotoCaptureProps) {
             Upload
           </Button>
         </div>
+      )}
+      {uploadError && (
+        <p className="text-xs text-destructive">{uploadError}</p>
       )}
 
       {/* Camera capture (mobile) */}

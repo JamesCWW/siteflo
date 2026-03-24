@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { getCustomers } from '@/actions/customers';
 import { Plus, User, Mail, Phone } from 'lucide-react';
 import { CustomerSearch } from '@/components/customers/customer-search';
+import { CustomerBulkImportButton } from '@/components/customers/customer-bulk-import-button';
 
 export default async function CustomersPage({
   searchParams,
@@ -23,12 +24,15 @@ export default async function CustomersPage({
             {customerList.length} customer{customerList.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button asChild className="h-12">
-          <Link href="/customers/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New customer
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <CustomerBulkImportButton />
+          <Button asChild className="h-12">
+            <Link href="/customers/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New customer
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <CustomerSearch defaultValue={q} />

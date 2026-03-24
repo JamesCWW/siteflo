@@ -7,10 +7,10 @@ import { getTenantSettings } from '@/actions/settings';
 import { getQuotesForJob } from '@/actions/quotes';
 import { JobStatusBadge } from '@/components/jobs/job-status-badge';
 import { JobStatusActions } from '@/components/jobs/job-status-actions';
-import { DynamicFormSection } from './dynamic-form-section';
+import { ServiceRecordSection } from '@/components/jobs/service-record-section';
 import { PhotoSection } from './photo-section';
-import { GenerateReportButton } from './generate-report-button';
 import { QuoteSheet } from './quote-sheet';
+import { DeleteJobButton } from './delete-job-button';
 import type { JobStatus } from '@/actions/jobs';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +35,6 @@ export default async function JobDetailPage({
   const { job, customer, template, photos } = result.data;
   const defaultVatRate = settingsResult.data?.settings?.defaultVatRate ?? 20;
   const jobQuotes = quotesResult.data ?? [];
-  const canEdit = job.status === 'scheduled' || job.status === 'in_progress';
   const canQuote = job.status !== 'cancelled';
 
   return (
@@ -82,16 +81,14 @@ export default async function JobDetailPage({
               customerEmail={customer.email ?? null}
             />
           )}
-          {job.pdfUrl ? (
+          {job.pdfUrl && (
             <Button asChild variant="outline" className="h-12">
               <a href={job.pdfUrl} target="_blank" rel="noopener noreferrer">
                 <Download className="h-4 w-4 mr-2" />
                 Download report
               </a>
             </Button>
-          ) : job.status === 'completed' ? (
-            <GenerateReportButton jobId={id} />
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -191,13 +188,15 @@ export default async function JobDetailPage({
         </CardContent>
       </Card>
 
-      {/* Dynamic form */}
+      {/* Service record wizard */}
       {template?.id && template.fieldSchema && template.fieldSchema.length > 0 && (
-        <DynamicFormSection
+        <ServiceRecordSection
           jobId={id}
+          templateName={template.name}
           fields={template.fieldSchema}
           initialValues={(job.fieldValues as Record<string, unknown>) ?? {}}
-          canEdit={canEdit}
+          customerEmail={customer.email ?? null}
+          pdfUrl={job.pdfUrl ?? null}
         />
       )}
 
@@ -205,7 +204,7 @@ export default async function JobDetailPage({
       <PhotoSection
         jobId={id}
         photos={photos}
-        canAdd={canEdit}
+        canAdd={job.status !== 'cancelled'}
       />
 
       {/* Quotes */}
@@ -238,6 +237,15 @@ export default async function JobDetailPage({
           </CardContent>
         </Card>
       )}
+
+      {/* Danger zone */}
+      <div className="border border-destructive/30 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
+        <p className="text-xs text-muted-foreground">
+          Permanently delete this job and all its data including the service record, photos, and any linked quotes.
+        </p>
+        <DeleteJobButton jobId={id} />
+      </div>
     </div>
   );
 }

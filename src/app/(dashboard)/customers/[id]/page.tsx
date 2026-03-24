@@ -9,6 +9,7 @@ import { ContractStatusBadge } from '@/components/contracts/contract-status-badg
 import { formatPence } from '@/lib/utils/money';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Mail, Phone, MapPin, Pencil, Plus, FileText, Calendar } from 'lucide-react';
+import { DeleteCustomerButton } from './delete-customer-button';
 
 export default async function CustomerDetailPage({
   params,
@@ -155,6 +156,14 @@ export default async function CustomerDetailPage({
             ))}
           </div>
         )}
+      </div>
+      {/* Danger zone */}
+      <div className="border border-destructive/30 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
+        <p className="text-xs text-muted-foreground">
+          Permanently delete this customer, all their service contracts, jobs, invoices, and service records.
+        </p>
+        <DeleteCustomerButton customerId={id} />
       </div>
     </div>
   );
